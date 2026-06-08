@@ -33,7 +33,6 @@ export const uploadImage = async (file: ImageFile): Promise<string> => {
     }
     return response;
   } catch (error: any) {
-    console.error("Upload image error:", error);
     throw new Error(error.response?.data?.message || "Lỗi upload ảnh");
   }
 };

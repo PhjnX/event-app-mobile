@@ -1,27 +1,37 @@
 {
   "expo": {
-    "name": "event-app-mobile",
+    "name": "EMS - Event Management",
     "slug": "event-app-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "scheme": "ems-app",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0a0a0a"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.phongx2003.ems",
+      "icon": "./assets/icon.png"
     },
     "android": {
+      "package": "com.phongx2003.ems",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0a0a0a"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.INTERNET",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -29,7 +39,20 @@
     "plugins": [
       "expo-secure-store",
       "expo-font",
-      "expo-web-browser"
-    ]
+      "expo-web-browser",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Cho phép EMS truy cập camera để quét mã QR check-in sự kiện."
+        }
+      ],
+      "expo-video",
+      "expo-audio"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f5154fe3-9f5a-4f19-9094-e9a4e0161434"
+      }
+    }
   }
 }

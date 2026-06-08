@@ -9,11 +9,24 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from "@expo-google-fonts/inter";
-import { ActivityIndicator, View } from "react-native";
+
+import { useState, useCallback } from "react";
+import { View } from "react-native";
+import Toast from "react-native-toast-message";
+import * as SplashScreen from "expo-splash-screen";
+
 import store from "./src/store";
 import AppNavigator from "./src/navigation/AppNavigator";
+import { toastConfig } from "./src/components/common/toastConfig";
+import { NotificationProvider } from "./src/context/NotificationContext";
+import SplashArtScreen from "./src/screens/SplashScreen";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+
+SplashScreen.preventAutoHideAsync();
 
 export default function App() {
+  const [showAnimatedSplash, setShowAnimatedSplash] = useState(true);
+
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -21,27 +34,33 @@ export default function App() {
     Inter_700Bold,
   });
 
-  if (!fontsLoaded) {
+  const onLayoutRootView = useCallback(async () => {
+    if (fontsLoaded) {
+      await SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) return null;
+
+  if (showAnimatedSplash) {
     return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: "#0a0a0a",
-        }}
-      >
-        <ActivityIndicator size="large" color="#b5a65f" />
+      <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
+        <SplashArtScreen onFinish={() => setShowAnimatedSplash(false)} />
       </View>
     );
   }
 
   return (
-    <Provider store={store}>
-      <SafeAreaProvider>
-        <AppNavigator />
-        <StatusBar style="dark" />
-      </SafeAreaProvider>
-    </Provider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <Provider store={store}>
+        <SafeAreaProvider>
+          <NotificationProvider>
+            <AppNavigator />
+            <StatusBar style="dark" />
+            <Toast config={toastConfig} />
+          </NotificationProvider>
+        </SafeAreaProvider>
+      </Provider>
+    </GestureHandlerRootView>
   );
 }

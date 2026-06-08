@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo, memo } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -6,1076 +6,892 @@ import {
   TouchableOpacity,
   Image,
   FlatList,
+  Animated,
   RefreshControl,
-  StyleSheet,
   Dimensions,
-  ImageBackground,
-  Modal,
-  ActivityIndicator,
+  Linking,
+  StatusBar,
 } from "react-native";
+
+import PagerView from "react-native-pager-view";
+import { WebView } from "react-native-webview";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useTabBar } from "../../context/TabBarContext";
+
 import { useAppDispatch, useAppSelector } from "../../hooks/useRedux";
 import {
   fetchPublicEvents,
   fetchFeaturedEvents,
+  fetchUpcomingEvents,
   fetchMyRegistrations,
 } from "../../store/slices/eventSlice";
 import { fetchPosts } from "../../store/slices/newsSlice";
-import LoadingScreen from "../../components/common/LoadingScreen";
+import AppHeader from "../../components/common/Appheader";
 
 const { width } = Dimensions.get("window");
 
-const COLORS = {
-  primary: "#D8C97B",
-  background: "#0a0a0a",
-  backgroundLight: "#1a1a1a",
-  backgroundCard: "#111111",
-  text: "#ffffff",
-  textSecondary: "#a0a0a0",
-  textMuted: "#666666",
-  cardBorder: "rgba(255,255,255,0.05)",
-};
+const MAP_HTML = `<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#0a0a0a}
+.clip{position:relative;width:100%;height:100%;overflow:hidden}
+iframe{
+  position:absolute;top:-44px;left:0;
+  width:100%;height:calc(100% + 84px);
+  border:none;pointer-events:none;
+}
+</style>
+</head>
+<body>
+<div class="clip">
+<iframe
+  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3918.609!2d106.73924!3d10.78476!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3175279f4c78da4f%3A0x23b2e7f0c4e48e13!2s28%20Mai%20Ch%C3%AD%20Th%E1%BB%8D%2C%20An%20Ph%C3%BA%2C%20Th%E1%BB%A7%20%C4%90%E1%BB%A9c!5e0!3m2!1svi!2s!4v1700000000000!5m2!1svi!2s"
+  loading="lazy" referrerpolicy="no-referrer-when-downgrade">
+</iframe>
+</div>
+</body>
+</html>`;
 
-// Partner logos
+const TEAM_IMAGE = require("../../../assets/webie_team.webp");
+
 const PARTNERS = [
-  { id: 1, logo: "https://via.placeholder.com/100x50/1a1a1a/D8C97B?text=P1" },
-  { id: 2, logo: "https://via.placeholder.com/100x50/1a1a1a/D8C97B?text=P2" },
-  { id: 3, logo: "https://via.placeholder.com/100x50/1a1a1a/D8C97B?text=P3" },
-  { id: 4, logo: "https://via.placeholder.com/100x50/1a1a1a/D8C97B?text=P4" },
+  require("../../../assets/partner_1.webp"),
+  require("../../../assets/partner_2.webp"),
+  require("../../../assets/partner_3.webp"),
+  require("../../../assets/partner_4.webp"),
+  require("../../../assets/partner_5.webp"),
+  require("../../../assets/partner_6.webp"),
+  require("../../../assets/partner_7.webp"),
+  require("../../../assets/partner_8.webp"),
+  require("../../../assets/partner_9.webp"),
 ];
 
-const formatDate = (dateString: string) => {
-  if (!dateString) return { day: "--", month: "---", full: "", time: "" };
-  const date = new Date(dateString);
-  return {
-    day: date.getDate().toString().padStart(2, "0"),
-    month: date.toLocaleString("vi-VN", { month: "short" }).toUpperCase(),
-    full: date.toLocaleDateString("vi-VN"),
-    time: date.toLocaleTimeString("vi-VN", {
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-  };
-};
+const SOLUTIONS: {
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+  title: string;
+  desc: string;
+}[] = [
+  { icon: "qrcode-scan", title: "Check-in QR\nSiêu Tốc", desc: "1 giây/người" },
+  {
+    icon: "cellphone-check",
+    title: "Mobile App\nSự Kiện",
+    desc: "Branded app",
+  },
+  {
+    icon: "chart-timeline-variant",
+    title: "Real-time\nAnalytics",
+    desc: "Báo cáo tức thì",
+  },
+  {
+    icon: "certificate-outline",
+    title: "Chứng Nhận\nSố",
+    desc: "Cấp ngay lập tức",
+  },
+  {
+    icon: "form-select",
+    title: "Form Đăng\nKý Smart",
+    desc: "Tự động quản lý",
+  },
+  {
+    icon: "email-fast-outline",
+    title: "Vé & Thư Mời\nĐiện Tử",
+    desc: "Chống giả mạo",
+  },
+];
 
-// ===== MEMOIZED COMPONENTS =====
+const STATS = [
+  { num: "50+", label: "Dự án" },
+  { num: "100%", label: "Hài lòng" },
+  { num: "24/7", label: "Hỗ trợ" },
+  { num: "15+", label: "Chuyên gia" },
+];
 
-// Section Header
-const SectionHeader = memo(({ title, highlight, onSeeAll }: any) => (
-  <View style={styles.sectionHeader}>
-    <Text style={styles.sectionTitle}>
-      {title} <Text style={styles.highlight}>{highlight}</Text>
-    </Text>
+function formatDate(iso?: string): string {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+// ────────────────────────────────────────────────────
+//  SECTION HEADER — gọn, Title Case, cân đối
+// ────────────────────────────────────────────────────
+const SectionHeader = ({
+  title,
+  highlight,
+  onSeeAll,
+}: {
+  title: string;
+  highlight?: string;
+  onSeeAll?: () => void;
+}) => (
+  <View className="flex-row justify-between items-center px-5 mb-5 mt-8">
+    {/* Tiêu đề: thanh vàng + chữ trắng + highlight vàng */}
+    <View className="flex-row items-center flex-1">
+      <View className="w-1 h-7 rounded-full bg-[#D8C97B] mr-3" />
+      <Text
+        style={{
+          fontSize: 26,
+          fontWeight: "900",
+          color: "#fff",
+          letterSpacing: -0.5,
+        }}
+      >
+        {title}
+        {highlight ? " " : ""}
+        {highlight && (
+          <Text style={{ color: "#D8C97B", fontSize: 26, fontWeight: "900" }}>
+            {highlight}
+          </Text>
+        )}
+      </Text>
+    </View>
+
     {onSeeAll && (
-      <TouchableOpacity onPress={onSeeAll} style={styles.seeAllButton}>
-        <Text style={styles.seeAllText}>Xem tất cả</Text>
-        <Ionicons name="arrow-forward" size={14} color={COLORS.primary} />
+      <TouchableOpacity
+        onPress={onSeeAll}
+        activeOpacity={0.7}
+        className="flex-row items-center ml-2"
+      >
+        <Text style={{ fontSize: 14, color: "#888", fontWeight: "700" }}>
+          Xem thêm
+        </Text>
+        <MaterialCommunityIcons name="chevron-right" size={18} color="#666" />
       </TouchableOpacity>
     )}
   </View>
-));
+);
 
-// Quick Action Button
-const QuickAction = memo(({ icon, label, onPress, badge }: any) => (
-  <TouchableOpacity style={styles.actionButton} onPress={onPress}>
-    <View style={styles.actionIcon}>
-      <Ionicons name={icon} size={24} color={COLORS.primary} />
-      {badge > 0 && (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{badge > 9 ? "9+" : badge}</Text>
-        </View>
-      )}
-    </View>
-    <Text style={styles.actionText}>{label}</Text>
-  </TouchableOpacity>
-));
+// ────────────────────────────────────────────────────
+//  ICON BOX
+// ────────────────────────────────────────────────────
+const IconBox = ({
+  name,
+  size = 24,
+}: {
+  name: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+  size?: number;
+}) => (
+  <View className="w-14 h-14 rounded-2xl bg-[#D8C97B]/10 border border-[#D8C97B]/20 items-center justify-center">
+    <MaterialCommunityIcons name={name} size={size} color="#D8C97B" />
+  </View>
+);
 
-// Event Mini Card
-const EventMiniCard = memo(({ item, onPress }: any) => {
-  const dateInfo = useMemo(() => formatDate(item.startDate), [item.startDate]);
+// ────────────────────────────────────────────────────
+//  MARQUEE PARTNERS
+// ────────────────────────────────────────────────────
+const CARD_W = 120;
+const TOTAL_W = PARTNERS.length * CARD_W;
+const LOOP_DATA = [...PARTNERS, ...PARTNERS];
 
-  return (
-    <TouchableOpacity style={styles.eventMiniCard} onPress={onPress}>
-      <Image
-        source={{
-          uri:
-            item.bannerImageUrl ||
-            "https://placehold.co/200x100/1a1a1a/666666?text=Event",
-        }}
-        style={styles.eventMiniImage}
-      />
-      <View style={styles.eventMiniDateBadge}>
-        <Text style={styles.eventMiniDay}>{dateInfo.day}</Text>
-        <Text style={styles.eventMiniMonth}>{dateInfo.month}</Text>
-      </View>
-      <View style={styles.eventMiniContent}>
-        <Text style={styles.eventMiniTitle} numberOfLines={2}>
-          {item.eventName}
-        </Text>
-        <View style={styles.eventMiniLocation}>
-          <Ionicons name="location-outline" size={10} color={COLORS.primary} />
-          <Text style={styles.eventMiniLocationText} numberOfLines={1}>
-            {item.location || "Online"}
-          </Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-});
+function MarqueePartners() {
+  const translateX = useRef(new Animated.Value(0)).current;
 
-// News Mini Card
-const NewsMiniCard = memo(({ item, onPress }: any) => (
-  <TouchableOpacity style={styles.newsMiniCard} onPress={onPress}>
-    <Image
-      source={{
-        uri:
-          item.thumbnailUrl ||
-          "https://placehold.co/70x70/1a1a1a/666666?text=News",
-      }}
-      style={styles.newsMiniImage}
-    />
-    <View style={styles.newsMiniContent}>
-      <Text style={styles.newsMiniTitle} numberOfLines={2}>
-        {item.title}
-      </Text>
-      <Text style={styles.newsMiniDate}>
-        {item.createdAt
-          ? new Date(item.createdAt).toLocaleDateString("vi-VN")
-          : ""}
-      </Text>
-    </View>
-  </TouchableOpacity>
-));
-
-// Event Select Modal Item
-const EventSelectItem = memo(({ item, onPress }: any) => {
-  const dateInfo = useMemo(
-    () => formatDate(item.eventStartDate),
-    [item.eventStartDate],
-  );
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.timing(translateX, {
+        toValue: -TOTAL_W,
+        duration: TOTAL_W * 18,
+        useNativeDriver: true,
+        isInteraction: false,
+      }),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, []);
 
   return (
-    <TouchableOpacity style={styles.eventSelectItem} onPress={onPress}>
-      <Image
-        source={{
-          uri:
-            item.eventBanner ||
-            "https://placehold.co/60x60/1a1a1a/666666?text=E",
-        }}
-        style={styles.eventSelectImage}
-      />
-      <View style={styles.eventSelectContent}>
-        <Text style={styles.eventSelectTitle} numberOfLines={2}>
-          {item.eventName}
-        </Text>
-        <Text style={styles.eventSelectDate}>{dateInfo.full}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
-    </TouchableOpacity>
+    <View className="overflow-hidden">
+      <Animated.View
+        style={{ flexDirection: "row", transform: [{ translateX }] }}
+      >
+        {LOOP_DATA.map((src, i) => (
+          <View
+            key={i}
+            className="w-[108px] h-[68px] mr-3 bg-[#151515] rounded-2xl border border-white/5 items-center justify-center"
+          >
+            <Image
+              source={src}
+              style={{ width: 80, height: 36 }}
+              resizeMode="contain"
+            />
+          </View>
+        ))}
+      </Animated.View>
+    </View>
   );
-});
+}
 
-// ===== MAIN COMPONENT =====
+// ────────────────────────────────────────────────────
+//  MAIN SCREEN
+// ────────────────────────────────────────────────────
 export default function HomeScreen() {
+  const { onScroll } = useTabBar();
   const navigation = useNavigation<any>();
   const dispatch = useAppDispatch();
+  const { isAuthenticated } = useAppSelector((s) => s.auth);
 
-  const { user, isAuthenticated } = useAppSelector((state) => state.auth);
-  const eventsState = useAppSelector((state) => state.events);
-  const newsState = useAppSelector((state) => state.news);
+  const eventsState = useAppSelector((s) => s.events);
+  const newsState = useAppSelector((s) => s.news);
 
-  const events = useMemo(
-    () => eventsState?.events || [],
-    [eventsState?.events],
-  );
-  const featuredEvents = useMemo(
-    () => eventsState?.featuredEvents || [],
-    [eventsState?.featuredEvents],
-  );
-  const myRegistrations = useMemo(
-    () => eventsState?.myRegistrations || [],
-    [eventsState?.myRegistrations],
-  );
-  const posts = useMemo(() => newsState?.posts || [], [newsState?.posts]);
+  const featuredEvents = eventsState?.featuredEvents || [];
+  const upcomingEvents =
+    eventsState?.upcomingEvents?.length > 0
+      ? eventsState.upcomingEvents
+      : eventsState?.events || [];
+  const posts = newsState?.posts || [];
 
+  const [page, setPage] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  const [isFirstLoad, setIsFirstLoad] = useState(true);
-  const [featuredIndex, setFeaturedIndex] = useState(0);
-  const [showMomentsModal, setShowMomentsModal] = useState(false);
-
-  // Active tickets count
-  const activeTicketsCount = useMemo(() => {
-    return myRegistrations.filter((t: any) => {
-      const endDate = new Date(t.eventEndDate || t.eventStartDate);
-      return endDate >= new Date();
-    }).length;
-  }, [myRegistrations]);
-
-  // Approved registrations for moments
-  const approvedRegistrations = useMemo(() => {
-    return myRegistrations.filter((t: any) => {
-      const endDate = new Date(t.eventEndDate || t.eventStartDate);
-      return (
-        endDate >= new Date() &&
-        (t.status === "APPROVED" || t.status === "CONFIRMED")
-      );
-    });
-  }, [myRegistrations]);
 
   useEffect(() => {
     loadData();
   }, []);
 
-  useEffect(() => {
-    if (featuredEvents.length > 1) {
-      const timer = setInterval(() => {
-        setFeaturedIndex((prev) => (prev + 1) % featuredEvents.length);
-      }, 5000);
-      return () => clearInterval(timer);
-    }
-  }, [featuredEvents.length]);
+  const loadData = async () => {
+    await Promise.all([
+      dispatch(fetchPublicEvents()),
+      dispatch(fetchFeaturedEvents()),
+      dispatch(fetchUpcomingEvents()),
+      dispatch(fetchPosts({})),
+      ...(isAuthenticated ? [dispatch(fetchMyRegistrations())] : []),
+    ]);
+  };
 
-  const loadData = useCallback(async () => {
-    try {
-      const promises = [
-        dispatch(fetchPublicEvents()),
-        dispatch(fetchFeaturedEvents()),
-        dispatch(fetchPosts()),
-      ];
-
-      if (isAuthenticated) {
-        promises.push(dispatch(fetchMyRegistrations()));
-      }
-
-      await Promise.all(promises);
-    } catch (error) {
-      console.log("Error:", error);
-    } finally {
-      setIsFirstLoad(false);
-    }
-  }, [dispatch, isAuthenticated]);
-
-  const onRefresh = useCallback(async () => {
+  const onRefresh = async () => {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
-  }, [loadData]);
-
-  // Handle moments button
-  const handleMomentsPress = useCallback(() => {
-    if (!isAuthenticated) {
-      navigation.navigate("Auth");
-      return;
-    }
-
-    if (approvedRegistrations.length === 0) {
-      // Không có sự kiện đã đăng ký
-      navigation.navigate("Events");
-      return;
-    }
-
-    if (approvedRegistrations.length === 1) {
-      // Chỉ có 1 sự kiện -> vào thẳng
-      navigation.navigate("EventMoments", {
-        eventId: approvedRegistrations[0].eventId,
-        eventName: approvedRegistrations[0].eventName,
-      });
-      return;
-    }
-
-    // Nhiều sự kiện -> hiện modal chọn
-    setShowMomentsModal(true);
-  }, [isAuthenticated, approvedRegistrations, navigation]);
-
-  // Select event for moments
-  const handleSelectEventForMoments = useCallback(
-    (item: any) => {
-      setShowMomentsModal(false);
-      navigation.navigate("EventMoments", {
-        eventId: item.eventId,
-        eventName: item.eventName,
-      });
-    },
-    [navigation],
-  );
-
-  // Navigation handlers
-  const handleEventPress = useCallback(
-    (item: any) => {
-      navigation.navigate("EventDetail", { slug: item.slug || item.eventId });
-    },
-    [navigation],
-  );
-
-  const handleNewsPress = useCallback(
-    (item: any) => {
-      navigation.navigate("NewsDetail", { slug: item.slug || item.id });
-    },
-    [navigation],
-  );
-
-  // Show loading on first load
-  if (isFirstLoad) {
-    return <LoadingScreen message="Đang tải" />;
-  }
-
-  // Featured Banner
-  const renderFeaturedBanner = () => {
-    const displayEvents =
-      featuredEvents.length > 0 ? featuredEvents : events.slice(0, 3);
-    if (displayEvents.length === 0) return null;
-
-    const currentEvent = displayEvents[featuredIndex % displayEvents.length];
-    if (!currentEvent) return null;
-
-    return (
-      <TouchableOpacity
-        style={styles.featuredContainer}
-        onPress={() => handleEventPress(currentEvent)}
-        activeOpacity={0.95}
-      >
-        <ImageBackground
-          source={{
-            uri:
-              currentEvent.bannerImageUrl ||
-              "https://placehold.co/600x300/1a1a1a/666666?text=Event",
-          }}
-          style={styles.featuredImage}
-          imageStyle={{ borderRadius: 20 }}
-        >
-          <LinearGradient
-            colors={["transparent", "rgba(0,0,0,0.8)", "rgba(0,0,0,0.95)"]}
-            style={styles.featuredGradient}
-          >
-            <View style={styles.featuredBadge}>
-              <Ionicons name="star" size={12} color={COLORS.background} />
-              <Text style={styles.featuredBadgeText}>NỔI BẬT</Text>
-            </View>
-
-            <View style={styles.featuredContent}>
-              <Text style={styles.featuredTitle} numberOfLines={2}>
-                {currentEvent.eventName}
-              </Text>
-              <View style={styles.featuredInfoRow}>
-                <Ionicons
-                  name="calendar-outline"
-                  size={14}
-                  color={COLORS.primary}
-                />
-                <Text style={styles.featuredInfoText}>
-                  {formatDate(currentEvent.startDate).full}
-                </Text>
-                <Ionicons
-                  name="location-outline"
-                  size={14}
-                  color={COLORS.primary}
-                  style={{ marginLeft: 12 }}
-                />
-                <Text style={styles.featuredInfoText} numberOfLines={1}>
-                  {currentEvent.location || "Online"}
-                </Text>
-              </View>
-            </View>
-
-            {displayEvents.length > 1 && (
-              <View style={styles.dotsContainer}>
-                {displayEvents.map((_, index) => (
-                  <View
-                    key={index}
-                    style={[
-                      styles.dot,
-                      index === featuredIndex % displayEvents.length &&
-                        styles.dotActive,
-                    ]}
-                  />
-                ))}
-              </View>
-            )}
-          </LinearGradient>
-        </ImageBackground>
-      </TouchableOpacity>
-    );
   };
 
-  // My Tickets Section
-  const renderMyTickets = () => {
-    if (!isAuthenticated) return null;
-
-    const activeTickets = myRegistrations.filter((t: any) => {
-      const endDate = new Date(t.eventEndDate || t.eventStartDate);
-      return (
-        endDate >= new Date() &&
-        (t.status === "APPROVED" || t.status === "CONFIRMED")
-      );
-    });
-
-    return (
-      <View style={styles.section}>
-        <SectionHeader
-          title="Vé"
-          highlight="của tôi"
-          onSeeAll={() => navigation.navigate("MyTickets")}
-        />
-
-        {activeTickets.length > 0 ? (
-          <FlatList
-            data={activeTickets.slice(0, 3)}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 20 }}
-            keyExtractor={(item) => `ticket-${item.registrationId}`}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.ticketMiniCard}
-                onPress={() => navigation.navigate("MyTickets")}
-              >
-                <Image
-                  source={{
-                    uri:
-                      item.eventBanner ||
-                      "https://placehold.co/60x60/1a1a1a/666666?text=E",
-                  }}
-                  style={styles.ticketMiniImage}
-                />
-                <View style={styles.ticketMiniContent}>
-                  <Text style={styles.ticketMiniTitle} numberOfLines={1}>
-                    {item.eventName}
-                  </Text>
-                  <View style={styles.ticketMiniInfo}>
-                    <Ionicons
-                      name="calendar-outline"
-                      size={10}
-                      color={COLORS.primary}
-                    />
-                    <Text style={styles.ticketMiniDate}>
-                      {formatDate(item.eventStartDate).full}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.ticketMiniQR}>
-                  <Ionicons
-                    name="qr-code-outline"
-                    size={20}
-                    color={COLORS.primary}
-                  />
-                </View>
-              </TouchableOpacity>
-            )}
-          />
-        ) : (
-          <View style={styles.emptyTickets}>
-            <Ionicons
-              name="ticket-outline"
-              size={32}
-              color={COLORS.textMuted}
-            />
-            <Text style={styles.emptyTicketsText}>Chưa có vé nào</Text>
-            <TouchableOpacity
-              style={styles.findEventBtn}
-              onPress={() => navigation.navigate("Events")}
-            >
-              <Text style={styles.findEventBtnText}>Tìm sự kiện</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-    );
-  };
-
-  // Partners Section
-  const renderPartners = () => (
-    <View style={styles.section}>
-      <SectionHeader title="Đối tác" highlight="đồng hành" />
-      <View style={styles.partnersGrid}>
-        {PARTNERS.map((partner) => (
-          <View key={partner.id} style={styles.partnerItem}>
-            <Image
-              source={{ uri: partner.logo }}
-              style={styles.partnerLogo}
-              resizeMode="contain"
-            />
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-
-  // About Section
-  const renderAboutSection = () => (
-    <View style={styles.aboutSection}>
-      <View style={styles.aboutBadge}>
-        <Text style={styles.aboutBadgeText}>VỀ WEBIE</Text>
-      </View>
-      <Text style={styles.aboutTitle}>
-        Nền tảng quản lý sự kiện chuyên nghiệp
-      </Text>
-      <Text style={styles.aboutDesc}>
-        Webie Event Management System giúp bạn tổ chức, quản lý và tham gia các
-        sự kiện một cách dễ dàng.
-      </Text>
-      <View style={styles.aboutFeatures}>
-        {[
-          { icon: "ticket-outline", text: "Đăng ký sự kiện nhanh chóng" },
-          { icon: "qr-code-outline", text: "Check-in bằng QR code" },
-          { icon: "notifications-outline", text: "Thông báo realtime" },
-        ].map((feature, index) => (
-          <View key={index} style={styles.aboutFeatureItem}>
-            <Ionicons
-              name={feature.icon as any}
-              size={16}
-              color={COLORS.primary}
-            />
-            <Text style={styles.aboutFeatureText}>{feature.text}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-
-  // Moments Modal
-  const renderMomentsModal = () => (
-    <Modal visible={showMomentsModal} transparent animationType="slide">
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Chọn sự kiện</Text>
-            <TouchableOpacity onPress={() => setShowMomentsModal(false)}>
-              <Ionicons name="close" size={24} color={COLORS.text} />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.modalSubtitle}>
-            Chọn sự kiện bạn muốn chia sẻ khoảnh khắc
-          </Text>
-
-          <FlatList
-            data={approvedRegistrations}
-            keyExtractor={(item) => `reg-${item.registrationId}`}
-            renderItem={({ item }) => (
-              <EventSelectItem
-                item={item}
-                onPress={() => handleSelectEventForMoments(item)}
-              />
-            )}
-            style={styles.modalList}
-            showsVerticalScrollIndicator={false}
-          />
-        </View>
-      </View>
-    </Modal>
-  );
+  const openMap = () =>
+    Linking.openURL("https://maps.app.goo.gl/GzCzpU2hapePur246");
+  const openPhone = () => Linking.openURL("tel:+84969838467");
+  const openMail = () => Linking.openURL("mailto:Huyen.dang@webie.com.vn");
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView className="flex-1 bg-[#0a0a0a]" edges={["top"]}>
+      <StatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
+
       <ScrollView
         showsVerticalScrollIndicator={false}
-        removeClippedSubviews={true}
+        contentContainerStyle={{ paddingBottom: 120 }}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={COLORS.primary}
+            tintColor="#D8C97B"
           />
         }
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Xin chào 👋</Text>
-            <Text style={styles.username}>{user?.username || "Khách"}</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.profileButton}
-            onPress={() => navigation.navigate("Profile")}
+        <AppHeader />
+
+        {/* ══════════════════════════════════════════════
+            1. HERO CAROUSEL — SỰ KIỆN NỔI BẬT
+        ══════════════════════════════════════════════ */}
+        <View className="mt-4 mb-2">
+          <PagerView
+            style={{ height: 260 }}
+            initialPage={0}
+            onPageSelected={(e) => setPage(e.nativeEvent.position)}
           >
-            {user?.avatarUrl ? (
-              <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarText}>
-                  {user?.username?.charAt(0).toUpperCase() || "K"}
+            {featuredEvents.slice(0, 4).map((rawItem, index) => {
+              const item = rawItem as any;
+              return (
+                <TouchableOpacity
+                  key={index}
+                  className="mx-5 rounded-[24px] overflow-hidden bg-[#151515]"
+                  style={{
+                    borderWidth: 1,
+                    borderColor: "rgba(216,201,123,0.15)",
+                  }}
+                  onPress={() =>
+                    navigation.navigate("EventDetail", {
+                      slug: item.slug || item.eventId,
+                    })
+                  }
+                  activeOpacity={0.92}
+                >
+                  {/* Ảnh nền */}
+                  <Image
+                    source={{
+                      uri:
+                        item.bannerImageUrl || "https://placehold.co/600x300",
+                    }}
+                    className="absolute inset-0 w-full h-full"
+                    resizeMode="cover"
+                  />
+
+                  {/* Gradient overlay — đen mạnh hơn ở đáy */}
+                  <LinearGradient
+                    colors={[
+                      "rgba(0,0,0,0.08)",
+                      "rgba(0,0,0,0.55)",
+                      "rgba(0,0,0,0.97)",
+                    ]}
+                    locations={[0, 0.45, 1]}
+                    className="absolute inset-0"
+                  />
+
+                  {/* Badge "SỰ KIỆN NỔI BẬT" ở góc trên-trái */}
+                  <View
+                    className="absolute top-4 left-5 flex-row items-center rounded-full px-3 py-1.5"
+                    style={{ backgroundColor: "rgba(216,201,123,0.92)" }}
+                  >
+                    <MaterialCommunityIcons
+                      name="star-four-points"
+                      size={11}
+                      color="#000"
+                    />
+                    <Text className="text-black text-[11px] font-black ml-1.5 tracking-widest uppercase">
+                      Nổi bật
+                    </Text>
+                  </View>
+
+                  {/* Nội dung — căn dưới, có padding trái phải rõ ràng */}
+                  <View className="absolute bottom-0 left-0 right-0 px-5 pb-5 pt-3">
+                    {/* Tên sự kiện — chữ lớn, rõ */}
+                    <Text
+                      className="text-white font-black leading-tight mb-3"
+                      numberOfLines={2}
+                      style={{ fontSize: 22, lineHeight: 30 }}
+                    >
+                      {item.name || item.title || "Tên sự kiện đang cập nhật"}
+                    </Text>
+
+                    {/* Meta row */}
+                    <View className="flex-row flex-wrap gap-y-1">
+                      {item.location || item.venue ? (
+                        <View className="flex-row items-center mr-5">
+                          <View className="w-6 h-6 rounded-full bg-[#D8C97B]/15 items-center justify-center mr-2">
+                            <MaterialCommunityIcons
+                              name="map-marker"
+                              size={13}
+                              color="#D8C97B"
+                            />
+                          </View>
+                          <Text
+                            className="text-[#ccc] text-[14px] font-semibold"
+                            numberOfLines={1}
+                          >
+                            {item.location || item.venue}
+                          </Text>
+                        </View>
+                      ) : null}
+                      {item.startDate || item.startTime ? (
+                        <View className="flex-row items-center">
+                          <View className="w-6 h-6 rounded-full bg-[#D8C97B]/15 items-center justify-center mr-2">
+                            <MaterialCommunityIcons
+                              name="calendar"
+                              size={13}
+                              color="#D8C97B"
+                            />
+                          </View>
+                          <Text className="text-[#ccc] text-[14px] font-semibold">
+                            {formatDate(item.startDate || item.startTime)}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </PagerView>
+
+          {/* Dots indicator */}
+          <View className="flex-row justify-center mt-4 gap-x-2">
+            {featuredEvents.slice(0, 4).map((_, i) => (
+              <View
+                key={i}
+                style={{
+                  width: page === i ? 24 : 7,
+                  height: 7,
+                  borderRadius: 4,
+                  backgroundColor: page === i ? "#D8C97B" : "#2a2a2a",
+                }}
+              />
+            ))}
+          </View>
+        </View>
+
+        {/* ══════════════════════════════════════════════
+            2. SỰ KIỆN SẮP DIỄN RA — GRID 2 CỘT
+        ══════════════════════════════════════════════ */}
+        <SectionHeader
+          title="Sự kiện"
+          highlight="sắp diễn ra"
+          onSeeAll={() => navigation.navigate("Events")}
+        />
+        <View className="px-5" style={{ gap: 14 }}>
+          {upcomingEvents.slice(0, 4).map((rawItem: any, index: number) => {
+            const item = rawItem as any;
+            const isFirst = index === 0;
+
+            // Card đầu tiên: full width nổi bật hơn
+            if (isFirst) {
+              return (
+                <TouchableOpacity
+                  key={item.id || index}
+                  className="w-full bg-[#131313] rounded-[22px] overflow-hidden border border-[#242424]"
+                  onPress={() =>
+                    navigation.navigate("EventDetail", {
+                      slug: item.slug || item.id,
+                    })
+                  }
+                  activeOpacity={0.85}
+                >
+                  <Image
+                    source={{
+                      uri:
+                        item.bannerImageUrl ||
+                        item.thumbnailUrl ||
+                        "https://placehold.co/600x300",
+                    }}
+                    style={{ width: "100%", height: 180 }}
+                  />
+                  {/* Gradient overlay */}
+                  <LinearGradient
+                    colors={["transparent", "rgba(10,10,10,0.92)"]}
+                    style={{
+                      position: "absolute",
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: 130,
+                      justifyContent: "flex-end",
+                      padding: 16,
+                    }}
+                  >
+                    {/* Date pill */}
+                    <View
+                      className="flex-row items-center self-start mb-2 rounded-full px-3 py-1"
+                      style={{ backgroundColor: "#D8C97B" }}
+                    >
+                      <MaterialCommunityIcons
+                        name="calendar"
+                        size={12}
+                        color="#000"
+                      />
+                      <Text className="text-black text-[12px] font-black ml-1.5">
+                        {item.startDate
+                          ? `${new Date(item.startDate).getDate()} Th${new Date(item.startDate).getMonth() + 1}, ${new Date(item.startDate).getFullYear()}`
+                          : "Đang cập nhật"}
+                      </Text>
+                    </View>
+                    <Text
+                      className="text-white font-black mb-1.5"
+                      numberOfLines={2}
+                      style={{ fontSize: 19, lineHeight: 26 }}
+                    >
+                      {item.name || item.title}
+                    </Text>
+                    <View className="flex-row items-center">
+                      <MaterialCommunityIcons
+                        name="map-marker-outline"
+                        size={14}
+                        color="#999"
+                      />
+                      <Text
+                        className="text-[#999] ml-1 font-medium"
+                        numberOfLines={1}
+                        style={{ fontSize: 13 }}
+                      >
+                        {item.location || item.venue || "Đang cập nhật"}
+                      </Text>
+                    </View>
+                  </LinearGradient>
+                </TouchableOpacity>
+              );
+            }
+
+            return null; // Handled by pairs below
+          })}
+
+          {/* 3 card còn lại chia 2 cột — cặp đôi */}
+          {(() => {
+            const rest = upcomingEvents.slice(1, 5) as any[];
+            const rows: any[][] = [];
+            for (let i = 0; i < rest.length; i += 2) {
+              rows.push(rest.slice(i, i + 2));
+            }
+            return rows.map((row, rowIdx) => (
+              <View key={rowIdx} className="flex-row" style={{ gap: 14 }}>
+                {row.map((rawItem: any, colIdx: number) => {
+                  const item = rawItem as any;
+                  const cardW = (width - 40 - 14) / 2;
+                  return (
+                    <TouchableOpacity
+                      key={item.id || colIdx}
+                      style={{ width: cardW }}
+                      className="bg-[#131313] rounded-[20px] overflow-hidden border border-[#242424]"
+                      onPress={() =>
+                        navigation.navigate("EventDetail", {
+                          slug: item.slug || item.id,
+                        })
+                      }
+                      activeOpacity={0.85}
+                    >
+                      <Image
+                        source={{
+                          uri:
+                            item.bannerImageUrl ||
+                            item.thumbnailUrl ||
+                            "https://placehold.co/300",
+                        }}
+                        style={{ width: "100%", height: 110 }}
+                      />
+                      {/* Date badge góc trên phải */}
+                      <View
+                        className="absolute top-2.5 right-2.5 rounded-xl py-1.5 px-2.5 items-center"
+                        style={{ backgroundColor: "#D8C97B" }}
+                      >
+                        <Text
+                          className="text-black font-black leading-none"
+                          style={{ fontSize: 17 }}
+                        >
+                          {item.startDate
+                            ? new Date(item.startDate).getDate()
+                            : "01"}
+                        </Text>
+                        <Text
+                          className="text-black font-bold mt-0.5 uppercase"
+                          style={{ fontSize: 10 }}
+                        >
+                          Th{" "}
+                          {item.startDate
+                            ? new Date(item.startDate).getMonth() + 1
+                            : "1"}
+                        </Text>
+                      </View>
+
+                      <View className="p-3">
+                        <Text
+                          className="text-white font-bold leading-snug mb-2"
+                          numberOfLines={2}
+                          style={{ fontSize: 14 }}
+                        >
+                          {item.name || item.title}
+                        </Text>
+                        <View className="flex-row items-center">
+                          <MaterialCommunityIcons
+                            name="map-marker-outline"
+                            size={13}
+                            color="#555"
+                          />
+                          <Text
+                            className="text-[#666] ml-1 flex-1 font-medium"
+                            numberOfLines={1}
+                            style={{ fontSize: 12 }}
+                          >
+                            {item.location || item.venue || "Đang cập nhật"}
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ));
+          })()}
+        </View>
+
+        {/* ══════════════════════════════════════════════
+            3. TIN TỨC NỔI BẬT — GRID 2 CỘT
+        ══════════════════════════════════════════════ */}
+        <SectionHeader
+          title="Tin Tức"
+          highlight="Nổi Bật"
+          onSeeAll={() => navigation.navigate("News")}
+        />
+        <View className="flex-row flex-wrap px-5" style={{ gap: 14 }}>
+          {posts.slice(0, 4).map((item, index) => (
+            <TouchableOpacity
+              key={item.id || index}
+              style={{ width: (width - 40 - 14) / 2 }}
+              className="bg-[#131313] rounded-[20px] overflow-hidden border border-[#242424]"
+              onPress={() =>
+                navigation.navigate("NewsDetail", {
+                  slug: item.slug || item.id,
+                })
+              }
+              activeOpacity={0.85}
+            >
+              <Image
+                source={{
+                  uri: item.thumbnailUrl || "https://placehold.co/300",
+                }}
+                style={{ width: "100%", height: 118 }}
+              />
+              <View className="p-3.5">
+                <Text
+                  className="text-white font-bold leading-tight mb-2"
+                  numberOfLines={2}
+                  style={{ fontSize: 15 }}
+                >
+                  {item.title}
+                </Text>
+                <View className="flex-row items-center">
+                  <MaterialCommunityIcons
+                    name="clock-outline"
+                    size={12}
+                    color="#555"
+                  />
+                  <Text
+                    className="text-[#555] ml-1.5 font-medium"
+                    style={{ fontSize: 12 }}
+                  >
+                    {formatDate(item.createdAt)}
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* ══════════════════════════════════════════════
+            4. GIẢI PHÁP CÔNG NGHỆ
+        ══════════════════════════════════════════════ */}
+        <SectionHeader title="Giải Pháp" highlight="Công Nghệ" />
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={SOLUTIONS}
+          keyExtractor={(_, index) => index.toString()}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8 }}
+          renderItem={({ item }) => (
+            <View
+              className="bg-[#131313] rounded-[22px] p-4 mr-3 border"
+              style={{ width: 160, borderColor: "rgba(216,201,123,0.18)" }}
+            >
+              <IconBox name={item.icon} size={26} />
+              <Text
+                className="text-white font-bold mt-4 mb-2 leading-tight"
+                style={{ fontSize: 16 }}
+              >
+                {item.title}
+              </Text>
+              <Text
+                className="text-[#777] leading-relaxed"
+                style={{ fontSize: 13 }}
+              >
+                {item.desc}
+              </Text>
+            </View>
+          )}
+        />
+
+        {/* ══════════════════════════════════════════════
+            5. ĐỐI TÁC
+        ══════════════════════════════════════════════ */}
+        <SectionHeader title="Đối Tác" highlight="Đồng Hành" />
+        <View className="mb-2">
+          <MarqueePartners />
+        </View>
+
+        {/* ══════════════════════════════════════════════
+            6. VỀ WEBIE VIETNAM
+        ══════════════════════════════════════════════ */}
+        <SectionHeader title="Về" highlight="Webie Vietnam" />
+        <View className="px-5 mb-6">
+          {/* Team photo */}
+          <View
+            className="h-[210px] rounded-[22px] overflow-hidden mb-4"
+            style={{ borderWidth: 1, borderColor: "rgba(216,201,123,0.2)" }}
+          >
+            <Image
+              source={TEAM_IMAGE}
+              style={{ width: "100%", height: "100%" }}
+              resizeMode="cover"
+            />
+            <LinearGradient
+              colors={["transparent", "rgba(10,10,10,0.97)"]}
+              className="absolute bottom-0 left-0 right-0 h-28 justify-end p-5"
+            >
+              <View
+                className="flex-row items-center self-start px-3 py-2 rounded-xl"
+                style={{
+                  backgroundColor: "rgba(10,10,10,0.85)",
+                  borderWidth: 1,
+                  borderColor: "rgba(216,201,123,0.35)",
+                }}
+              >
+                <MaterialCommunityIcons
+                  name="star-circle-outline"
+                  size={17}
+                  color="#D8C97B"
+                />
+                <Text
+                  className="text-[#D8C97B] font-bold ml-2 tracking-wide"
+                  style={{ fontSize: 14 }}
+                >
+                  Đối tác chiến lược chuyển đổi số
                 </Text>
               </View>
-            )}
-          </TouchableOpacity>
+            </LinearGradient>
+          </View>
+
+          {/* Stats */}
+          <View
+            className="flex-row bg-[#131313] rounded-[22px] overflow-hidden"
+            style={{ borderWidth: 1, borderColor: "#222" }}
+          >
+            {STATS.map((s, i) => (
+              <View
+                key={i}
+                className={`flex-1 items-center py-5 ${i < STATS.length - 1 ? "border-r border-[#222]" : ""}`}
+              >
+                <Text
+                  className="text-[#D8C97B] font-black mb-1"
+                  style={{ fontSize: 22 }}
+                >
+                  {s.num}
+                </Text>
+                <Text
+                  className="text-[#666] uppercase font-bold tracking-wider"
+                  style={{ fontSize: 11 }}
+                >
+                  {s.label}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
 
-        {/* Featured Banner */}
-        {renderFeaturedBanner()}
-
-        {/* Quick Actions */}
-        <View style={styles.quickActions}>
-          <QuickAction
-            icon="ticket-outline"
-            label="Vé của tôi"
-            badge={activeTicketsCount}
-            onPress={() => navigation.navigate("MyTickets")}
-          />
-          <QuickAction
-            icon="camera-outline"
-            label="Khoảnh khắc"
-            onPress={handleMomentsPress}
-          />
-          <QuickAction
-            icon="calendar-outline"
-            label="Sự kiện"
-            onPress={() => navigation.navigate("Events")}
-          />
-          <QuickAction
-            icon="newspaper-outline"
-            label="Tin tức"
-            onPress={() => navigation.navigate("News")}
-          />
-        </View>
-
-        {/* My Tickets */}
-        {renderMyTickets()}
-
-        {/* Events */}
-        <View style={styles.section}>
-          <SectionHeader
-            title="Sự kiện"
-            highlight="nổi bật"
-            onSeeAll={() => navigation.navigate("Events")}
-          />
-          {events.length > 0 ? (
-            <FlatList
-              data={events.slice(0, 6)}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 20 }}
-              keyExtractor={(item) => `event-${item.eventId}`}
-              renderItem={({ item }) => (
-                <EventMiniCard
-                  item={item}
-                  onPress={() => handleEventPress(item)}
-                />
-              )}
-              removeClippedSubviews={true}
-              initialNumToRender={3}
-              maxToRenderPerBatch={3}
-              windowSize={5}
+        {/* ══════════════════════════════════════════════
+            7. LIÊN HỆ HỢP TÁC
+        ══════════════════════════════════════════════ */}
+        <SectionHeader title="Liên Hệ" highlight="Hợp Tác" />
+        <View className="px-5">
+          {/* Map */}
+          <TouchableOpacity
+            activeOpacity={1}
+            className="rounded-[22px] overflow-hidden mb-4 bg-[#0a0a0a]"
+            style={{ borderWidth: 1, borderColor: "#1e1e1e" }}
+          >
+            <WebView
+              source={{ html: MAP_HTML }}
+              style={{ height: 190, backgroundColor: "#0a0a0a" }}
+              scrollEnabled={false}
+              androidLayerType="hardware"
+              javaScriptEnabled
+              domStorageEnabled
             />
-          ) : (
-            <View style={styles.emptyContainer}>
-              <Ionicons
-                name="calendar-outline"
-                size={40}
-                color={COLORS.textMuted}
-              />
-              <Text style={styles.emptyText}>Chưa có sự kiện</Text>
-            </View>
-          )}
-        </View>
-
-        {/* News */}
-        <View style={styles.section}>
-          <SectionHeader
-            title="Tin tức"
-            highlight="mới nhất"
-            onSeeAll={() => navigation.navigate("News")}
-          />
-          {posts.length > 0 ? (
-            <View style={styles.newsList}>
-              {posts.slice(0, 4).map((item: any) => (
-                <NewsMiniCard
-                  key={`news-${item.id}`}
-                  item={item}
-                  onPress={() => handleNewsPress(item)}
+            <TouchableOpacity
+              className="absolute inset-0"
+              onPress={openMap}
+              activeOpacity={0.01}
+            />
+            <View
+              className="flex-row items-center justify-between px-4 py-4"
+              style={{ backgroundColor: "#131313" }}
+            >
+              <View className="flex-row items-center flex-1">
+                <MaterialCommunityIcons
+                  name="navigation-variant-outline"
+                  size={17}
+                  color="#D8C97B"
                 />
-              ))}
+                <Text
+                  className="text-[#999] font-medium flex-1 ml-2"
+                  numberOfLines={1}
+                  style={{ fontSize: 14 }}
+                >
+                  28 Mai Chí Thọ, An Phú, TP. Thủ Đức
+                </Text>
+              </View>
+              <Text
+                className="text-[#D8C97B] font-bold"
+                style={{ fontSize: 14 }}
+              >
+                Mở Maps →
+              </Text>
             </View>
-          ) : (
-            <View style={styles.emptyContainer}>
-              <Ionicons
-                name="newspaper-outline"
-                size={40}
-                color={COLORS.textMuted}
-              />
-              <Text style={styles.emptyText}>Chưa có tin tức</Text>
-            </View>
-          )}
+          </TouchableOpacity>
+
+          {/* Contact list */}
+          <View
+            className="bg-[#131313] rounded-[22px] overflow-hidden mb-8"
+            style={{ borderWidth: 1, borderColor: "#222" }}
+          >
+            {[
+              {
+                icon: "map-marker-outline" as const,
+                label: "ĐỊA CHỈ",
+                value: "28 Mai Chí Thọ, P.An Phú",
+                onPress: openMap,
+              },
+              {
+                icon: "phone-outline" as const,
+                label: "HOTLINE",
+                value: "+84 969 838 467",
+                onPress: openPhone,
+              },
+              {
+                icon: "email-outline" as const,
+                label: "EMAIL",
+                value: "Huyen.dang@webie.com.vn",
+                onPress: openMail,
+              },
+            ].map((item, i) => (
+              <TouchableOpacity
+                key={i}
+                onPress={item.onPress}
+                activeOpacity={0.7}
+                className={`flex-row items-center px-4 py-4 ${i < 2 ? "border-b border-[#1e1e1e]" : ""}`}
+              >
+                <View
+                  className="w-12 h-12 rounded-[16px] items-center justify-center mr-4"
+                  style={{
+                    backgroundColor: "rgba(216,201,123,0.08)",
+                    borderWidth: 1,
+                    borderColor: "rgba(216,201,123,0.2)",
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name={item.icon}
+                    size={22}
+                    color="#D8C97B"
+                  />
+                </View>
+                <View className="flex-1">
+                  <Text
+                    className="text-[#555] font-black tracking-widest mb-1"
+                    style={{ fontSize: 11 }}
+                  >
+                    {item.label}
+                  </Text>
+                  <Text
+                    className="text-[#e0e0e0] font-bold"
+                    style={{ fontSize: 16 }}
+                  >
+                    {item.value}
+                  </Text>
+                </View>
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={22}
+                  color="#333"
+                />
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
-
-        {/* Partners */}
-        {renderPartners()}
-
-        {/* About */}
-        {renderAboutSection()}
-
-        <View style={{ height: 100 }} />
       </ScrollView>
-
-      {/* Moments Modal */}
-      {renderMomentsModal()}
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  greeting: { color: COLORS.textSecondary, fontSize: 14 },
-  username: {
-    color: COLORS.text,
-    fontSize: 24,
-    fontWeight: "bold",
-    marginTop: 4,
-  },
-  profileButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    overflow: "hidden",
-    borderWidth: 2,
-    borderColor: COLORS.primary,
-  },
-  avatar: { width: "100%", height: "100%" },
-  avatarPlaceholder: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: COLORS.primary,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarText: { color: COLORS.background, fontSize: 20, fontWeight: "bold" },
-
-  // Featured
-  featuredContainer: {
-    marginHorizontal: 20,
-    marginTop: 10,
-    height: 200,
-    borderRadius: 20,
-    overflow: "hidden",
-  },
-  featuredImage: { width: "100%", height: "100%" },
-  featuredGradient: { flex: 1, padding: 16, justifyContent: "flex-end" },
-  featuredBadge: {
-    position: "absolute",
-    top: 16,
-    left: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  featuredBadgeText: {
-    color: COLORS.background,
-    fontSize: 10,
-    fontWeight: "bold",
-    marginLeft: 4,
-    letterSpacing: 1,
-  },
-  featuredContent: { marginBottom: 10 },
-  featuredTitle: {
-    color: COLORS.text,
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 8,
-  },
-  featuredInfoRow: { flexDirection: "row", alignItems: "center" },
-  featuredInfoText: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
-    marginLeft: 4,
-  },
-  dotsContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 10,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "rgba(255,255,255,0.3)",
-    marginHorizontal: 3,
-  },
-  dotActive: { width: 20, backgroundColor: COLORS.primary },
-
-  // Quick Actions
-  quickActions: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    paddingVertical: 24,
-  },
-  actionButton: { alignItems: "center" },
-  actionIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: "rgba(216,201,123,0.1)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "rgba(216,201,123,0.2)",
-    position: "relative",
-  },
-  actionText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: "500" },
-  badge: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    backgroundColor: "#ef4444",
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  badgeText: { color: "#fff", fontSize: 10, fontWeight: "bold" },
-
-  // Section
-  section: { marginTop: 24 },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    marginBottom: 16,
-  },
-  sectionTitle: { color: COLORS.text, fontSize: 20, fontWeight: "bold" },
-  highlight: { color: COLORS.primary },
-  seeAllButton: { flexDirection: "row", alignItems: "center" },
-  seeAllText: {
-    color: COLORS.primary,
-    fontSize: 13,
-    fontWeight: "600",
-    marginRight: 4,
-  },
-  emptyContainer: {
-    height: 120,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  emptyText: { color: COLORS.textMuted, fontSize: 14, marginTop: 8 },
-
-  // Tickets
-  ticketMiniCard: {
-    width: 220,
-    backgroundColor: COLORS.backgroundCard,
-    borderRadius: 14,
-    marginRight: 12,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(216,201,123,0.2)",
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  ticketMiniImage: { width: 60, height: 60, margin: 10, borderRadius: 8 },
-  ticketMiniContent: { flex: 1, paddingRight: 8 },
-  ticketMiniTitle: {
-    color: COLORS.text,
-    fontSize: 13,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  ticketMiniInfo: { flexDirection: "row", alignItems: "center" },
-  ticketMiniDate: { color: COLORS.textMuted, fontSize: 10, marginLeft: 4 },
-  ticketMiniQR: {
-    padding: 10,
-    borderLeftWidth: 1,
-    borderLeftColor: "rgba(216,201,123,0.2)",
-  },
-  emptyTickets: {
-    alignItems: "center",
-    paddingVertical: 30,
-    marginHorizontal: 20,
-    backgroundColor: COLORS.backgroundCard,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.cardBorder,
-    borderStyle: "dashed",
-  },
-  emptyTicketsText: { color: COLORS.textMuted, fontSize: 13, marginTop: 8 },
-  findEventBtn: {
-    marginTop: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-  },
-  findEventBtnText: { color: COLORS.primary, fontSize: 12, fontWeight: "600" },
-
-  // Event Mini Card
-  eventMiniCard: {
-    width: 160,
-    marginRight: 12,
-    borderRadius: 14,
-    backgroundColor: COLORS.backgroundCard,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: COLORS.cardBorder,
-  },
-  eventMiniImage: { width: "100%", height: 90 },
-  eventMiniDateBadge: {
-    position: "absolute",
-    top: 8,
-    left: 8,
-    backgroundColor: "rgba(0,0,0,0.8)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    alignItems: "center",
-  },
-  eventMiniDay: { color: COLORS.text, fontSize: 14, fontWeight: "bold" },
-  eventMiniMonth: { color: COLORS.primary, fontSize: 9, fontWeight: "600" },
-  eventMiniContent: { padding: 10 },
-  eventMiniTitle: {
-    color: COLORS.text,
-    fontSize: 13,
-    fontWeight: "600",
-    lineHeight: 17,
-    marginBottom: 6,
-    height: 34,
-  },
-  eventMiniLocation: { flexDirection: "row", alignItems: "center" },
-  eventMiniLocationText: {
-    color: COLORS.textMuted,
-    fontSize: 10,
-    marginLeft: 3,
-    flex: 1,
-  },
-
-  // News Mini Card
-  newsList: { paddingHorizontal: 20 },
-  newsMiniCard: {
-    flexDirection: "row",
-    backgroundColor: COLORS.backgroundCard,
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: COLORS.cardBorder,
-  },
-  newsMiniImage: { width: 70, height: 70, borderRadius: 8 },
-  newsMiniContent: { flex: 1, marginLeft: 12, justifyContent: "center" },
-  newsMiniTitle: {
-    color: COLORS.text,
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 18,
-    marginBottom: 4,
-  },
-  newsMiniDate: { color: COLORS.textMuted, fontSize: 11 },
-
-  // Partners
-  partnersGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    paddingHorizontal: 20,
-    justifyContent: "space-between",
-  },
-  partnerItem: {
-    width: (width - 60) / 2,
-    height: 60,
-    backgroundColor: COLORS.backgroundCard,
-    borderRadius: 12,
-    marginBottom: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: COLORS.cardBorder,
-  },
-  partnerLogo: { width: "70%", height: 30 },
-
-  // About Section
-  aboutSection: {
-    marginTop: 30,
-    marginHorizontal: 20,
-    backgroundColor: COLORS.backgroundCard,
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "rgba(216,201,123,0.2)",
-  },
-  aboutBadge: {
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(216,201,123,0.1)",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 20,
-    marginBottom: 12,
-  },
-  aboutBadgeText: {
-    color: COLORS.primary,
-    fontSize: 10,
-    fontWeight: "bold",
-    letterSpacing: 1,
-  },
-  aboutTitle: {
-    color: COLORS.text,
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 8,
-  },
-  aboutDesc: {
-    color: COLORS.textSecondary,
-    fontSize: 13,
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  aboutFeatures: {},
-  aboutFeatureItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  aboutFeatureText: { color: COLORS.text, fontSize: 13, marginLeft: 10 },
-
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.9)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: COLORS.backgroundCard,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    maxHeight: "70%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  modalTitle: { color: COLORS.text, fontSize: 20, fontWeight: "bold" },
-  modalSubtitle: { color: COLORS.textMuted, fontSize: 13, marginBottom: 20 },
-  modalList: { maxHeight: 400 },
-
-  // Event Select Item
-  eventSelectItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.background,
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: COLORS.cardBorder,
-  },
-  eventSelectImage: { width: 50, height: 50, borderRadius: 10 },
-  eventSelectContent: { flex: 1, marginLeft: 12 },
-  eventSelectTitle: {
-    color: COLORS.text,
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  eventSelectDate: { color: COLORS.textMuted, fontSize: 11 },
-});

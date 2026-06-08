@@ -6,10 +6,38 @@ import type { Event, Registration } from "../../models/event";
 const processImageUrl = (url: string | null | undefined): string => {
   if (!url) return "";
   if (url.startsWith("http")) return url;
-  // Thêm base URL nếu cần
   const baseUrl = "https://event-app-y77p.onrender.com";
   return url.startsWith("/") ? `${baseUrl}${url}` : `${baseUrl}/${url}`;
 };
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+export interface ActivityItem {
+  activityId: number;
+  activityName: string;
+  startTime?: string;
+  endTime?: string;
+  location?: string;
+}
+
+export interface MyRegistration {
+  registrationId: number;
+  status: string;
+  ticketCode: string;
+  createdAt: string;
+  updatedAt: string;
+  rejectionReason?: string;
+  eventId: number;
+  eventName: string;
+  eventSlug: string;
+  eventBanner: string;
+  eventStartDate?: string;
+  eventEndDate?: string;
+  location: string;
+  // Lưu full array để ActivityQRScannerScreen dùng được
+  activities: ActivityItem[];
+  // Giữ lại string để MyTicketsScreen backward compat
+  activityNames: string;
+}
 
 interface EventState {
   events: Event[];
@@ -17,7 +45,7 @@ interface EventState {
   upcomingEvents: Event[];
   eventDetail: Event | null;
   activities: any[];
-  myRegistrations: any[];
+  myRegistrations: MyRegistration[];
   isLoading: boolean;
   error: string | null;
 }
@@ -33,6 +61,8 @@ const initialState: EventState = {
   error: null,
 };
 
+// ── Thunks ────────────────────────────────────────────────────────────────────
+
 // GET /events/public
 export const fetchPublicEvents = createAsyncThunk(
   "events/fetchPublic",
@@ -44,7 +74,6 @@ export const fetchPublicEvents = createAsyncThunk(
         return response.content;
       return [];
     } catch (error: any) {
-      console.log("fetchPublicEvents error:", error);
       return [];
     }
   },
@@ -58,7 +87,6 @@ export const fetchFeaturedEvents = createAsyncThunk(
       const response: any = await apiService.get("/events/featured");
       return Array.isArray(response) ? response : [];
     } catch (error: any) {
-      console.log("fetchFeaturedEvents error:", error);
       return [];
     }
   },
@@ -72,7 +100,6 @@ export const fetchUpcomingEvents = createAsyncThunk(
       const response: any = await apiService.get("/events/upcoming-selected");
       return Array.isArray(response) ? response : [];
     } catch (error: any) {
-      console.log("fetchUpcomingEvents error:", error);
       return [];
     }
   },
@@ -103,7 +130,6 @@ export const fetchEventActivities = createAsyncThunk(
       );
       return Array.isArray(response) ? response : [];
     } catch (error: any) {
-      console.log("fetchEventActivities error:", error);
       return [];
     }
   },
@@ -127,7 +153,49 @@ export const registerForEvent = createAsyncThunk(
   },
 );
 
-// GET /events/my-registrations - Giống hệt cách desktop xử lý
+// POST /events/{eventId}/add-activities
+export const addActivitiesToEvent = createAsyncThunk(
+  "events/addActivities",
+  async (
+    payload: { eventId: number; activityIds: number[] },
+    { rejectWithValue },
+  ) => {
+    try {
+      const response = await apiService.post(
+        `/events/${payload.eventId}/add-activities`,
+        payload.activityIds,
+      );
+      return response;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Không thể thêm hoạt động",
+      );
+    }
+  },
+);
+
+// POST /api/events/newsletter/subscribe
+export const subscribeNewsletter = createAsyncThunk(
+  "events/subscribeNewsletter",
+  async (
+    { email, subscribe }: { email: string; subscribe: boolean },
+    { rejectWithValue },
+  ) => {
+    try {
+      const response = await apiService.post(
+        `/api/events/newsletter/subscribe?subscribe=${subscribe}`,
+        { email },
+      );
+      return response;
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || "Đăng ký thất bại",
+      );
+    }
+  },
+);
+
+// GET /events/my-registrations
 export const fetchMyRegistrations = createAsyncThunk(
   "events/fetchMyRegistrations",
   async (_, { rejectWithValue }) => {
@@ -136,29 +204,37 @@ export const fetchMyRegistrations = createAsyncThunk(
 
       if (!Array.isArray(response)) return [];
 
-      // Format data giống desktop
-      const formattedData = await Promise.all(
+      const formattedData: MyRegistration[] = await Promise.all(
         response.map(async (item: any) => {
-          // Event có thể nằm trong item.event hoặc chính là item
           const evt = item.event || item;
           const eventId = evt.eventId || evt.id;
           const rawImage =
             evt.bannerImageUrl || evt.bannerUrl || evt.image || "";
 
-          // Lấy activities đã đăng ký
+          // Lấy activities đã đăng ký — lưu full array thay vì chỉ join string
+          let activities: ActivityItem[] = [];
           let activityNames = "";
+
           if (eventId) {
             try {
               const activitiesRes = await apiService.get<any[]>(
                 `/activities/by-event/${eventId}/registered`,
               );
               if (Array.isArray(activitiesRes) && activitiesRes.length > 0) {
-                activityNames = activitiesRes
-                  .map((act) => act.activityName)
+                // ✅ Map ra ActivityItem[] để ActivityQRScannerScreen dùng được
+                activities = activitiesRes.map((act: any) => ({
+                  activityId: act.activityId || act.id,
+                  activityName: act.activityName || act.name || "Hoạt động",
+                  startTime: act.startTime || act.startDate,
+                  endTime: act.endTime || act.endDate,
+                  location: act.location || act.roomName || act.room,
+                }));
+                // Giữ backward compat cho MyTicketsScreen
+                activityNames = activities
+                  .map((a) => a.activityName)
                   .join(", ");
               }
             } catch (error) {
-              console.warn(`Không lấy được activities cho event ${eventId}`);
             }
           }
 
@@ -182,19 +258,20 @@ export const fetchMyRegistrations = createAsyncThunk(
             eventStartDate: evt.startDate,
             eventEndDate: evt.endDate,
             location: evt.location || "Online",
-            activityNames: activityNames,
+            activities, // ✅ full array với activityId
+            activityNames, // ✅ string join cho backward compat
           };
         }),
       );
 
       return formattedData;
     } catch (err: any) {
-      console.log("fetchMyRegistrations error:", err);
       return [];
     }
   },
 );
 
+// ── Slice ─────────────────────────────────────────────────────────────────────
 const eventSlice = createSlice({
   name: "events",
   initialState,

@@ -2,7 +2,6 @@ import React, { useRef, useState, useEffect } from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   Dimensions,
   Image,
   TextInput,
@@ -13,7 +12,10 @@ import {
   Alert,
   Modal,
   ScrollView,
+  Keyboard,
 } from "react-native";
+// ✅ FIX DOUBLE-TAP: Import TouchableOpacity từ gesture-handler thay vì react-native
+import { TouchableOpacity } from "react-native-gesture-handler";
 import PagerView from "react-native-pager-view";
 import Svg, { Path } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
@@ -31,41 +33,26 @@ import {
 } from "../../store/slices/authSlice";
 import storageService from "../../services/storageService";
 import { STORAGE_KEYS } from "../../constants";
-
+import { useNavigation, useRoute } from "@react-navigation/native";
 const logo = require("../../../assets/Logo_EMS.webp");
 
 const { width } = Dimensions.get("window");
 
-const GOOGLE_LOGIN_URL =
-  "https://event-app-y77p.onrender.com/oauth2/authorization/google";
-
-// THEME TỐI VÀNG ĐEN - Giống EMS Desktop
 const COLORS = {
-  // Primary
   primary: "#D8C97B",
   primaryDark: "#b5a65f",
-
-  // Background
   background: "#0a0a0a",
   backgroundLight: "#1a1a1a",
   backgroundCard: "#141414",
-
-  // Text
   text: "#ffffff",
   textSecondary: "#a0a0a0",
   textMuted: "#666666",
-
-  // Input
   inputBg: "rgba(255,255,255,0.05)",
   inputBorder: "rgba(255,255,255,0.1)",
   inputBorderFocus: "#D8C97B",
-
-  // Others
   error: "#ef4444",
   success: "#22c55e",
   google: "#DB4437",
-
-  // Wave
   waveTop: "#1a1a2e",
 };
 
@@ -77,9 +64,20 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
   const pagerRef = useRef<PagerView>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const dispatch = useAppDispatch();
+  const route = useRoute<any>();
   const { isLoading, error, verificationEmail } = useAppSelector(
     (state) => state.auth,
   );
+
+  useEffect(() => {
+    if (route.params?.targetPage !== undefined) {
+      const pageIndex = route.params.targetPage;
+      setTimeout(() => {
+        pagerRef.current?.setPageWithoutAnimation(pageIndex);
+        setCurrentPage(pageIndex);
+      }, 100);
+    }
+  }, [route.params?.targetPage]);
 
   // Login states
   const [loginEmail, setLoginEmail] = useState("");
@@ -117,40 +115,56 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
     pagerRef.current?.setPage(page);
   };
 
-  // ===== LOGIN =====
   const handleLogin = async () => {
     if (!loginEmail || !loginPassword) {
       Alert.alert("Thông báo", "Vui lòng nhập email và mật khẩu!");
       return;
     }
     dispatch(clearError());
-    dispatch(loginUser({ email: loginEmail, password: loginPassword }));
-  };
-
-  const handleGoogleLogin = async () => {
-    try {
-      const redirectUrl = Linking.createURL("/auth/callback");
-      const result = await WebBrowser.openAuthSessionAsync(
-        GOOGLE_LOGIN_URL,
-        redirectUrl,
-      );
-
-      if (result.type === "success" && result.url) {
-        const url = new URL(result.url);
-        const token =
-          url.searchParams.get("token") || url.searchParams.get("accessToken");
-
-        if (token) {
-          await storageService.setItem(STORAGE_KEYS.ACCESS_TOKEN, token);
-          dispatch(fetchCurrentUser());
-        }
-      }
-    } catch (error) {
-      Alert.alert("Lỗi", "Đăng nhập Google thất bại. Vui lòng thử lại.");
+    const result = await dispatch(
+      loginUser({ email: loginEmail, password: loginPassword }),
+    );
+    if (loginUser.fulfilled.match(result)) {
+      dispatch(fetchCurrentUser());
+      onSkip();
     }
   };
 
-  // ===== REGISTER - FIX: gửi confirmPassword =====
+  const BACKEND_URL = "https://event-app-y77p.onrender.com";
+  const APP_REDIRECT_URI = "myapp://oauth2/redirect";
+
+  const handleGoogleLogin = async () => {
+    try {
+      const loginUrl =
+        `${BACKEND_URL}/oauth2/authorization/google` +
+        `?redirect_uri=${encodeURIComponent(APP_REDIRECT_URI)}`;
+      const result = await WebBrowser.openAuthSessionAsync(
+        loginUrl,
+        APP_REDIRECT_URI,
+      );
+      if (result.type === "success" && result.url) {
+        const params = new URL(result.url).searchParams;
+        const accessToken = params.get("accessToken");
+        const refreshToken = params.get("refreshToken") ?? "";
+        const uid = params.get("uid") ?? "";
+        if (accessToken) {
+          await storageService.setItem(STORAGE_KEYS.ACCESS_TOKEN, accessToken);
+          await storageService.setItem(
+            STORAGE_KEYS.REFRESH_TOKEN,
+            refreshToken,
+          );
+          await storageService.setItem(STORAGE_KEYS.USER_ID, uid);
+          dispatch(fetchCurrentUser());
+          onSkip();
+        } else {
+          Alert.alert("Lỗi", "Đăng nhập Google thất bại.");
+        }
+      }
+    } catch (error) {
+      Alert.alert("Lỗi", "Không thể mở trình duyệt đăng nhập.");
+    }
+  };
+
   const handleRegister = async () => {
     if (
       !registerUsername ||
@@ -175,12 +189,11 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
         username: registerUsername,
         email: registerEmail,
         password: registerPassword,
-        confirmPassword: registerConfirmPassword, // FIX: thêm field này
+        confirmPassword: registerConfirmPassword,
       }),
     );
   };
 
-  // ===== VERIFY EMAIL =====
   const handleVerifyEmail = async () => {
     if (!verifyOtp || verifyOtp.length < 4) {
       Alert.alert("Thông báo", "Vui lòng nhập mã xác thực!");
@@ -215,7 +228,6 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
     Alert.alert("Thông báo", "Đã gửi lại mã xác thực đến email của bạn!");
   };
 
-  // ===== FORGOT PASSWORD =====
   const handleForgotPassword = async () => {
     if (!forgotEmail) {
       Alert.alert("Thông báo", "Vui lòng nhập email!");
@@ -249,7 +261,6 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
       Alert.alert("Thông báo", "Mật khẩu phải có ít nhất 6 ký tự!");
       return;
     }
-
     const result = await dispatch(
       resetPassword({
         email: forgotEmail,
@@ -258,7 +269,6 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
         confirmPassword: confirmNewPassword,
       }),
     );
-
     if (resetPassword.fulfilled.match(result)) {
       Alert.alert("Thành công", "Đặt lại mật khẩu thành công!", [
         {
@@ -296,7 +306,7 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
       autoCapitalize?: "none" | "sentences";
       maxLength?: number;
       textAlign?: "left" | "center";
-      letterSpacing?: number; // Chỉ dùng cho OTP
+      letterSpacing?: number;
     },
   ) => (
     <View
@@ -319,7 +329,7 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
           color: COLORS.text,
           fontSize: 15,
           textAlign: options?.textAlign || "left",
-          letterSpacing: options?.letterSpacing || 0, // Mặc định là 0
+          letterSpacing: options?.letterSpacing || 0,
         }}
         placeholder={placeholder}
         placeholderTextColor={COLORS.textMuted}
@@ -331,6 +341,7 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
         maxLength={options?.maxLength}
       />
       {options?.secureTextEntry && options?.onTogglePassword && (
+        // ✅ TouchableOpacity này cũng dùng từ gesture-handler
         <TouchableOpacity onPress={options.onTogglePassword}>
           <Ionicons
             name={options.showPassword ? "eye-outline" : "eye-off-outline"}
@@ -414,7 +425,7 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
               />
 
               {/* Error */}
-              {error && (
+              {error ? (
                 <View
                   style={{
                     backgroundColor: "rgba(239, 68, 68, 0.15)",
@@ -435,7 +446,7 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
                     {error}
                   </Text>
                 </View>
-              )}
+              ) : null}
 
               {/* Step 1: Email */}
               {forgotStep === "email" && (
@@ -455,9 +466,7 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
                       "Nhập email của bạn",
                       forgotEmail,
                       setForgotEmail,
-                      {
-                        keyboardType: "email-address",
-                      },
+                      { keyboardType: "email-address" },
                     )}
                   </View>
                   <TouchableOpacity
@@ -560,9 +569,7 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
                       "Mật khẩu mới",
                       newPassword,
                       setNewPassword,
-                      {
-                        secureTextEntry: true,
-                      },
+                      { secureTextEntry: true },
                     )}
                   </View>
                   <View style={{ marginBottom: 20 }}>
@@ -691,7 +698,7 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
             </View>
 
             {/* Error */}
-            {error && (
+            {error ? (
               <View
                 style={{
                   backgroundColor: "rgba(239, 68, 68, 0.15)",
@@ -712,7 +719,7 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
                   {error}
                 </Text>
               </View>
-            )}
+            ) : null}
 
             {/* OTP Input */}
             <View style={{ marginBottom: 20 }}>
@@ -788,8 +795,12 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
       {/* Skip Button */}
       <View style={{ position: "absolute", top: 55, right: 20, zIndex: 999 }}>
         <TouchableOpacity
-          onPress={onSkip}
+          onPress={() => {
+            Keyboard.dismiss();
+            onSkip();
+          }}
           activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           style={{
             flexDirection: "row",
             alignItems: "center",
@@ -818,7 +829,9 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
       <PagerView
         ref={pagerRef}
         style={{ flex: 1 }}
-        initialPage={0}
+        initialPage={
+          route.params?.targetPage !== undefined ? route.params.targetPage : 0
+        }
         onPageSelected={(e) => {
           setCurrentPage(e.nativeEvent.position);
           dispatch(clearError());
@@ -834,7 +847,6 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
               paddingTop: 60,
             }}
           >
-            {/* Logo with glow effect */}
             <View
               style={{
                 shadowColor: COLORS.primary,
@@ -1003,7 +1015,7 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
             />
 
             {/* Error */}
-            {error && currentPage === 1 && (
+            {error && currentPage === 1 ? (
               <View
                 style={{
                   backgroundColor: "rgba(239, 68, 68, 0.15)",
@@ -1024,7 +1036,7 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
                   {error}
                 </Text>
               </View>
-            )}
+            ) : null}
 
             {/* Email */}
             <View style={{ marginBottom: 14 }}>
@@ -1045,9 +1057,7 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
                 "Nhập email của bạn",
                 loginEmail,
                 setLoginEmail,
-                {
-                  keyboardType: "email-address",
-                },
+                { keyboardType: "email-address" },
               )}
             </View>
 
@@ -1172,7 +1182,11 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
                 marginBottom: 16,
               }}
             >
-              <Ionicons name="logo-google" size={20} color={COLORS.google} />
+              <Image
+                source={require("../../../assets/Logo-google-icon-PNG.png")}
+                style={{ width: 20, height: 20 }}
+                resizeMode="contain"
+              />
               <Text
                 style={{
                   color: "#000",
@@ -1258,7 +1272,7 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
             />
 
             {/* Error */}
-            {error && currentPage === 2 && (
+            {error && currentPage === 2 ? (
               <View
                 style={{
                   backgroundColor: "rgba(239, 68, 68, 0.15)",
@@ -1279,7 +1293,7 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
                   {error}
                 </Text>
               </View>
-            )}
+            ) : null}
 
             {/* Username */}
             <View style={{ marginBottom: 12 }}>
@@ -1322,9 +1336,7 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
                 "Nhập email của bạn",
                 registerEmail,
                 setRegisterEmail,
-                {
-                  keyboardType: "email-address",
-                },
+                { keyboardType: "email-address" },
               )}
             </View>
 

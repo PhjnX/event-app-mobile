@@ -9,9 +9,9 @@ export type AuthStackParamList = {
 export type UserTabParamList = {
   Home: undefined;
   Events: undefined;
-  MyTickets: undefined;
+  Moments: undefined;
   News: undefined;
-  Profile: undefined;
+  MyTickets: undefined;
 };
 
 export type OrganizerTabParamList = {
@@ -26,7 +26,11 @@ export type RootStackParamList = {
   OrganizerMain: undefined;
   EventDetail: { slug: string };
   NewsDetail: { slug: string };
-  Moments: { eventSlug: string };
-  ActivityQRScanner: undefined;
   EventMoments: { eventId: number; eventName: string };
+  MyTickets: undefined;
+  Profile: undefined;
+  ActivityQRScanner: { ticketCode?: string } | undefined;
+  Notifications: undefined;
+  RegisterOrganizer: undefined;
+  NotificationsOrganizerScreen: undefined;
 };

@@ -11,7 +11,7 @@ import {
   Modal,
   Platform,
   KeyboardAvoidingView,
-  StyleSheet,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,28 +23,30 @@ import {
   uploadAvatar,
   updateUserProfile,
   changePassword,
-  logoutUser,
-  resetToLogin,
   clearError,
 } from "../../store/slices/authSlice";
 import type { User } from "../../models/user";
 
-const COLORS = {
-  primary: "#D8C97B",
-  primaryDark: "#b5a65f",
-  background: "#0a0a0a",
-  backgroundLight: "#1a1a1a",
-  backgroundCard: "#141414",
-  text: "#ffffff",
-  textSecondary: "#a0a0a0",
-  textMuted: "#666666",
-  inputBg: "rgba(255,255,255,0.05)",
-  inputBorder: "rgba(255,255,255,0.1)",
-  error: "#ef4444",
-  success: "#22c55e",
+const { width } = Dimensions.get("window");
+
+const C = {
+  gold: "#D8C97B",
+  goldDark: "#b5a65f",
+  goldFaint: "rgba(216,201,123,0.08)",
+  goldBorder: "rgba(216,201,123,0.25)",
+  goldBorderStrong: "rgba(216,201,123,0.5)",
+  bg: "#0a0a0a",
+  bgLight: "#1a1a1a",
+  bgCard: "#111111",
+  white: "#ffffff",
+  gray: "#a0a0a0",
+  muted: "#555555",
+  inputBg: "rgba(255,255,255,0.04)",
+  inputBorder: "rgba(255,255,255,0.08)",
+  red: "#ef4444",
 };
 
-// Memoized Input Component
+// ─── Input Field ─────────────────────────────────────────────────────────────
 const InputField = memo(
   ({
     label,
@@ -65,14 +67,27 @@ const InputField = memo(
     placeholder?: string;
     secureTextEntry?: boolean;
   }) => (
-    <View style={styles.inputContainer}>
-      <Text style={styles.inputLabel}>{label}</Text>
-      <View style={styles.inputWrapper}>
-        <Ionicons name={icon} size={18} color={COLORS.primary} />
+    <View className="mb-4">
+      <Text
+        className="mb-2 text-xs font-semibold tracking-widest uppercase"
+        style={{ color: C.gold }}
+      >
+        {label}
+      </Text>
+      <View
+        className="flex-row items-center rounded-xl px-4"
+        style={{
+          backgroundColor: C.inputBg,
+          borderWidth: 1,
+          borderColor: C.inputBorder,
+        }}
+      >
+        <Ionicons name={icon} size={17} color={C.gold} />
         <TextInput
-          style={[styles.input, !editable && styles.inputDisabled]}
+          className="flex-1 py-4 pl-3 text-base"
+          style={{ color: editable ? C.white : C.muted }}
           placeholder={placeholder || label}
-          placeholderTextColor={COLORS.textMuted}
+          placeholderTextColor={C.muted}
           value={value}
           onChangeText={onChangeText}
           editable={editable}
@@ -84,52 +99,61 @@ const InputField = memo(
   ),
 );
 
-// Memoized Menu Item Component
+// ─── Menu Item ────────────────────────────────────────────────────────────────
 const MenuItem = memo(
   ({
     icon,
-    iconColor = COLORS.primary,
-    iconBgColor = "rgba(216,201,123,0.15)",
+    iconColor = C.gold,
+    iconBg = C.goldFaint,
     title,
     subtitle,
     onPress,
-    containerStyle,
+    danger = false,
   }: {
     icon: keyof typeof Ionicons.glyphMap;
     iconColor?: string;
-    iconBgColor?: string;
+    iconBg?: string;
     title: string;
     subtitle: string;
     onPress: () => void;
-    containerStyle?: any;
+    danger?: boolean;
   }) => (
     <TouchableOpacity
-      style={[styles.menuItem, containerStyle]}
+      className="flex-row items-center rounded-xl p-4 mb-3"
+      style={{
+        backgroundColor: danger ? "rgba(239,68,68,0.08)" : C.inputBg,
+        borderWidth: 1,
+        borderColor: danger ? "rgba(239,68,68,0.25)" : C.inputBorder,
+      }}
       onPress={onPress}
     >
-      <View style={[styles.menuIconBox, { backgroundColor: iconBgColor }]}>
-        <Ionicons name={icon} size={20} color={iconColor} />
+      <View
+        className="w-10 h-10 rounded-full items-center justify-center"
+        style={{ backgroundColor: iconBg }}
+      >
+        <Ionicons name={icon} size={19} color={iconColor} />
       </View>
-      <View style={styles.menuContent}>
+      <View className="flex-1 ml-3">
         <Text
-          style={[
-            styles.menuTitle,
-            { color: iconColor === COLORS.error ? COLORS.error : COLORS.text },
-          ]}
+          className="text-base font-semibold"
+          style={{ color: danger ? C.red : C.white }}
         >
           {title}
         </Text>
-        <Text style={styles.menuSubtitle}>{subtitle}</Text>
+        <Text className="text-sm mt-0.5" style={{ color: C.gray }}>
+          {subtitle}
+        </Text>
       </View>
       <Ionicons
         name="chevron-forward"
-        size={20}
-        color={iconColor === COLORS.error ? COLORS.error : COLORS.textMuted}
+        size={18}
+        color={danger ? C.red : C.muted}
       />
     </TouchableOpacity>
   ),
 );
 
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function ProfileScreen() {
   const navigation = useNavigation<any>();
   const dispatch = useAppDispatch();
@@ -145,13 +169,10 @@ export default function ProfileScreen() {
     dateOfBirth: "",
     avatarUrl: "",
   });
-
   const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<any>(null);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
-
-  // Password states
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -173,19 +194,16 @@ export default function ProfileScreen() {
   const handlePickImage = useCallback(async () => {
     const permissionResult =
       await ImagePicker.requestMediaLibraryPermissionsAsync();
-
     if (!permissionResult.granted) {
       Alert.alert("Thông báo", "Cần cấp quyền truy cập thư viện ảnh!");
       return;
     }
-
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
     });
-
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
       setPreviewAvatar(asset.uri);
@@ -195,7 +213,6 @@ export default function ProfileScreen() {
 
   const handleSaveProfile = useCallback(async () => {
     let currentAvatarUrl = formData.avatarUrl;
-
     if (selectedFile) {
       const uploadResult = await dispatch(uploadAvatar(selectedFile));
       if (uploadAvatar.fulfilled.match(uploadResult)) {
@@ -205,10 +222,9 @@ export default function ProfileScreen() {
         return;
       }
     }
-
-    const updatePayload = { ...formData, avatarUrl: currentAvatarUrl };
-    const result = await dispatch(updateUserProfile(updatePayload));
-
+    const result = await dispatch(
+      updateUserProfile({ ...formData, avatarUrl: currentAvatarUrl }),
+    );
     if (updateUserProfile.fulfilled.match(result)) {
       Alert.alert("Thành công", "Cập nhật thông tin thành công!");
       setSelectedFile(null);
@@ -231,12 +247,10 @@ export default function ProfileScreen() {
       Alert.alert("Thông báo", "Mật khẩu mới phải có ít nhất 6 ký tự!");
       return;
     }
-
     dispatch(clearError());
     const result = await dispatch(
       changePassword({ oldPassword, newPassword, confirmPassword }),
     );
-
     if (changePassword.fulfilled.match(result)) {
       Alert.alert("Thành công", "Đổi mật khẩu thành công!");
       setShowPasswordModal(false);
@@ -248,166 +262,345 @@ export default function ProfileScreen() {
     }
   }, [dispatch, oldPassword, newPassword, confirmPassword, error]);
 
-  const handleLogout = useCallback(() => {
-    Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất?", [
-      { text: "Hủy", style: "cancel" },
-      {
-        text: "Đăng xuất",
-        style: "destructive",
-        onPress: () => dispatch(logoutUser()),
-      },
-    ]);
-  }, [dispatch]);
+  const handleNavigateToLogin = useCallback(() => {
+    navigation.navigate("Auth", {
+      screen: "Welcome",
+      params: { targetPage: 1 },
+    });
+  }, [navigation]);
 
-  // Guest muốn đăng nhập
-  const handleGuestLogin = useCallback(() => {
-    dispatch(resetToLogin());
-  }, [dispatch]);
+  const handleNavigateToRegister = useCallback(() => {
+    navigation.navigate("Auth", {
+      screen: "Welcome",
+      params: { targetPage: 2 },
+    });
+  }, [navigation]);
 
   const displayAvatar = previewAvatar || formData.avatarUrl;
   const userInitial = user?.username
     ? user.username.charAt(0).toUpperCase()
-    : "K";
+    : "U";
 
-  // ===== GUEST VIEW =====
+  // ══════════════════════════════════════════════════════════════
+  //  GUEST VIEW
+  // ══════════════════════════════════════════════════════════════
   if (!isAuthenticated && skippedAuth) {
+    const cardW = (width - 52) / 2;
+
     return (
-      <SafeAreaView style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Hồ sơ</Text>
-          <View style={{ width: 24 }} />
-        </View>
-
-        {/* Guest Content */}
-        <View style={styles.guestContainer}>
-          <View style={styles.guestIconBox}>
-            <Ionicons
-              name="person-circle-outline"
-              size={80}
-              color={COLORS.textMuted}
-            />
-          </View>
-          <Text style={styles.guestTitle}>Chào Khách!</Text>
-          <Text style={styles.guestText}>
-            Đăng nhập để sử dụng đầy đủ tính năng như đăng ký sự kiện, quản lý
-            vé và chia sẻ khoảnh khắc.
-          </Text>
-
-          <TouchableOpacity
-            style={styles.loginButton}
-            onPress={handleGuestLogin}
-          >
-            <Ionicons
-              name="log-in-outline"
-              size={20}
-              color={COLORS.background}
-            />
-            <Text style={styles.loginButtonText}>Đăng nhập ngay</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.registerLink}
-            onPress={handleGuestLogin}
-          >
-            <Text style={styles.registerLinkText}>
-              Chưa có tài khoản?{" "}
-              <Text style={{ color: COLORS.primary }}>Đăng ký</Text>
+      <SafeAreaView className="flex-1" style={{ backgroundColor: C.bg }}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}
+        >
+          {/* Header */}
+          <View className="flex-row items-center justify-between px-5 pt-4 pb-2">
+            <TouchableOpacity onPress={() => navigation.goBack()}>
+              <Ionicons name="arrow-back" size={22} color={C.white} />
+            </TouchableOpacity>
+            <Text
+              className="text-base font-semibold"
+              style={{ color: C.white }}
+            >
+              Tài khoản
             </Text>
-          </TouchableOpacity>
-        </View>
+            <View style={{ width: 22 }} />
+          </View>
 
-        {/* Features */}
-        <View style={styles.featuresContainer}>
-          <Text style={styles.featuresTitle}>Tính năng khi đăng nhập</Text>
-          {[
-            { icon: "ticket-outline", text: "Đăng ký và quản lý vé sự kiện" },
-            { icon: "camera-outline", text: "Chia sẻ khoảnh khắc" },
-            { icon: "qr-code-outline", text: "Check-in bằng QR code" },
-            { icon: "notifications-outline", text: "Nhận thông báo sự kiện" },
-          ].map((item, index) => (
-            <View key={index} style={styles.featureItem}>
-              <View style={styles.featureIcon}>
-                <Ionicons
-                  name={item.icon as any}
-                  size={18}
-                  color={COLORS.primary}
-                />
-              </View>
-              <Text style={styles.featureText}>{item.text}</Text>
+          {/* Hero — concentric rings */}
+          <View
+            className="items-center justify-center"
+            style={{ height: 220, marginTop: 10 }}
+          >
+            <View
+              className="absolute items-center justify-center"
+              style={{
+                width: 180,
+                height: 180,
+                borderRadius: 90,
+                borderWidth: 1,
+                borderColor: "rgba(216,201,123,0.12)",
+              }}
+            />
+            <View
+              className="absolute items-center justify-center"
+              style={{
+                width: 140,
+                height: 140,
+                borderRadius: 70,
+                borderWidth: 1,
+                borderColor: "rgba(216,201,123,0.2)",
+              }}
+            />
+            <View
+              className="items-center justify-center"
+              style={{
+                width: 96,
+                height: 96,
+                borderRadius: 48,
+                backgroundColor: "rgba(216,201,123,0.1)",
+                borderWidth: 1.5,
+                borderColor: "rgba(216,201,123,0.4)",
+              }}
+            >
+              <Ionicons name="person-outline" size={48} color={C.gold} />
             </View>
-          ))}
-        </View>
+
+            {[
+              { icon: "ticket-outline", top: 10, right: width * 0.15 - 16 },
+              { icon: "qr-code-outline", top: 50, left: width * 0.1 - 16 },
+              { icon: "star-outline", bottom: 20, right: width * 0.12 - 16 },
+              { icon: "calendar-outline", bottom: 30, left: width * 0.15 - 16 },
+            ].map((f, i) => (
+              <View
+                key={i}
+                className="absolute items-center justify-center"
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 17,
+                  backgroundColor: "rgba(216,201,123,0.08)",
+                  borderWidth: 1,
+                  borderColor: "rgba(216,201,123,0.2)",
+                  top: f.top,
+                  bottom: f.bottom,
+                  left: f.left,
+                  right: f.right,
+                }}
+              >
+                <Ionicons name={f.icon as any} size={15} color={C.gold} />
+              </View>
+            ))}
+          </View>
+
+          {/* Text */}
+          <View className="px-7 mt-6 items-center">
+            <Text
+              className="font-black text-center leading-tight"
+              style={{ fontSize: 26, color: C.white, letterSpacing: -0.5 }}
+            >
+              Đăng nhập để khám phá{"\n"}
+              <Text style={{ color: C.gold }}>thế giới sự kiện</Text>
+            </Text>
+            <Text
+              className="text-sm text-center leading-relaxed mt-3 px-4"
+              style={{ color: C.gray }}
+            >
+              Hàng nghìn sự kiện đang chờ bạn. Đặt vé, check-in và lưu giữ những
+              khoảnh khắc đáng nhớ chỉ trong một ứng dụng.
+            </Text>
+          </View>
+
+          {/* Feature grid 2×2 */}
+          <View className="flex-row flex-wrap px-5 mt-7">
+            {[
+              {
+                icon: "ticket-outline",
+                title: "Đặt vé dễ dàng",
+                desc: "Chọn sự kiện & thanh toán nhanh",
+              },
+              {
+                icon: "qr-code-outline",
+                title: "Check-in QR",
+                desc: "Vào cổng chỉ 1 chạm",
+              },
+              {
+                icon: "notifications-outline",
+                title: "Thông báo",
+                desc: "Không bỏ lỡ sự kiện nào",
+              },
+              {
+                icon: "camera-outline",
+                title: "Khoảnh khắc",
+                desc: "Chia sẻ ảnh & kỷ niệm",
+              },
+            ].map((item, i) => (
+              <View
+                key={i}
+                className="rounded-2xl p-4"
+                style={{
+                  width: cardW,
+                  backgroundColor: C.bgCard,
+                  borderWidth: 1,
+                  borderColor: C.inputBorder,
+                }}
+              >
+                <View
+                  className="w-11 h-11 rounded-xl items-center justify-center mb-3"
+                  style={{
+                    backgroundColor: C.goldFaint,
+                    borderWidth: 1,
+                    borderColor: C.goldBorder,
+                  }}
+                >
+                  <Ionicons name={item.icon as any} size={22} color={C.gold} />
+                </View>
+                <Text
+                  className="text-sm font-bold mb-1"
+                  style={{ color: C.white }}
+                >
+                  {item.title}
+                </Text>
+                <Text className="text-xs leading-5" style={{ color: C.muted }}>
+                  {item.desc}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+          {/* CTA */}
+          <View className="px-6 mt-8">
+            <TouchableOpacity
+              className="flex-row items-center justify-center rounded-2xl py-4 mb-3"
+              style={{ backgroundColor: C.gold }}
+              onPress={handleNavigateToLogin}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="log-in-outline" size={19} color={C.bg} />
+              <Text
+                className="ml-2 text-base font-bold tracking-wide"
+                style={{ color: C.bg }}
+              >
+                Đăng nhập
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              className="flex-row items-center justify-center rounded-2xl py-4 mb-6"
+              style={{ borderWidth: 1.5, borderColor: C.goldBorderStrong }}
+              onPress={handleNavigateToRegister}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="person-add-outline" size={19} color={C.gold} />
+              <Text
+                className="ml-2 text-base font-semibold"
+                style={{ color: C.gold }}
+              >
+                Tạo tài khoản mới
+              </Text>
+            </TouchableOpacity>
+
+            {/* Trust badges */}
+            <View className="flex-row justify-center">
+              {[
+                { icon: "shield-checkmark-outline", label: "Bảo mật" },
+                { icon: "gift-outline", label: "Miễn phí" },
+                { icon: "ban-outline", label: "Không quảng cáo" },
+              ].map((b, i) => (
+                <View
+                  key={i}
+                  className="flex-row items-center"
+                  style={{ marginHorizontal: 8 }}
+                >
+                  <Ionicons name={b.icon as any} size={12} color={C.muted} />
+                  <Text className="text-xs ml-1" style={{ color: C.muted }}>
+                    {b.label}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
 
-  // ===== AUTHENTICATED VIEW =====
+  // ══════════════════════════════════════════════════════════════
+  //  AUTHENTICATED VIEW
+  // ══════════════════════════════════════════════════════════════
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: C.bg }}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: 30 }}
         showsVerticalScrollIndicator={false}
-        removeClippedSubviews={true}
+        removeClippedSubviews
       >
         {/* Header */}
-        <View style={styles.header}>
+        <View className="flex-row items-center justify-between px-5 py-4">
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+            <Ionicons name="arrow-back" size={24} color={C.white} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Hồ sơ cá nhân</Text>
+          <Text className="text-lg font-bold" style={{ color: C.white }}>
+            Hồ sơ cá nhân
+          </Text>
           <View style={{ width: 24 }} />
         </View>
 
-        {/* Avatar Section */}
-        <View style={styles.avatarSection}>
+        {/* Avatar */}
+        <View className="items-center py-5">
           <TouchableOpacity onPress={handlePickImage} activeOpacity={0.8}>
-            <View style={styles.avatarContainer}>
+            <View
+              className="w-28 h-28 rounded-full overflow-hidden items-center justify-center"
+              style={{
+                backgroundColor: C.bgCard,
+                borderWidth: 3,
+                borderColor: C.gold,
+              }}
+            >
               {displayAvatar ? (
                 <Image
                   source={{ uri: displayAvatar }}
-                  style={styles.avatar}
+                  className="w-full h-full"
                   resizeMode="cover"
                 />
               ) : (
-                <Text style={styles.avatarInitial}>{userInitial}</Text>
+                <Text className="text-5xl font-bold" style={{ color: C.gold }}>
+                  {userInitial}
+                </Text>
               )}
-              <View style={styles.avatarOverlay}>
-                <Ionicons name="camera" size={18} color={COLORS.text} />
+              <View
+                className="absolute bottom-0 left-0 right-0 h-9 items-center justify-center"
+                style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+              >
+                <Ionicons name="camera" size={17} color={C.white} />
               </View>
             </View>
             {isUploading && (
-              <View style={styles.avatarLoading}>
-                <ActivityIndicator color={COLORS.primary} />
+              <View
+                className="absolute inset-0 rounded-full items-center justify-center"
+                style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+              >
+                <ActivityIndicator color={C.gold} />
               </View>
             )}
           </TouchableOpacity>
-
-          <Text style={styles.userName}>{user?.username || "Người dùng"}</Text>
-          <Text style={styles.userEmail}>{user?.email}</Text>
-          {user?.role && (
-            <View style={styles.roleBadge}>
-              <Text style={styles.roleText}>{user.role}</Text>
+          <Text className="text-xl font-bold mt-3" style={{ color: C.white }}>
+            {user?.username || "Người dùng"}
+          </Text>
+          <Text className="text-sm mt-1" style={{ color: C.gray }}>
+            {user?.email}
+          </Text>
+          {user?.role ? (
+            <View
+              className="px-3 py-1 rounded-xl mt-2"
+              style={{
+                backgroundColor: C.goldFaint,
+                borderWidth: 1,
+                borderColor: C.goldBorder,
+              }}
+            >
+              <Text
+                className="text-xs font-semibold uppercase tracking-widest"
+                style={{ color: C.gold }}
+              >
+                {user.role}
+              </Text>
             </View>
-          )}
+          ) : null}
         </View>
 
-        {/* Form Section */}
-        <View style={styles.formSection}>
-          <Text style={styles.sectionTitle}>Thông tin cá nhân</Text>
+        {/* Form */}
+        <View className="px-5 mt-2">
+          <Text className="text-base font-bold mb-4" style={{ color: C.white }}>
+            Thông tin cá nhân
+          </Text>
 
           <InputField
             label="Tên người dùng"
             icon="person-outline"
             value={formData.username || ""}
-            onChangeText={(text) =>
-              setFormData({ ...formData, username: text })
-            }
+            onChangeText={(t) => setFormData({ ...formData, username: t })}
           />
-
           <InputField
             label="Email"
             icon="mail-outline"
@@ -416,42 +609,42 @@ export default function ProfileScreen() {
             editable={false}
             keyboardType="email-address"
           />
-
           <InputField
             label="Số điện thoại"
             icon="call-outline"
             value={formData.phoneNumber || ""}
-            onChangeText={(text) =>
-              setFormData({ ...formData, phoneNumber: text })
-            }
+            onChangeText={(t) => setFormData({ ...formData, phoneNumber: t })}
             keyboardType="phone-pad"
             placeholder="Nhập số điện thoại"
           />
-
           <InputField
             label="Địa chỉ"
             icon="location-outline"
             value={formData.address || ""}
-            onChangeText={(text) => setFormData({ ...formData, address: text })}
+            onChangeText={(t) => setFormData({ ...formData, address: t })}
           />
 
           {/* Gender */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Giới tính</Text>
-            <TouchableOpacity
-              onPress={() => setShowGenderPicker(true)}
-              style={styles.selectWrapper}
+          <View className="mb-4">
+            <Text
+              className="mb-2 text-xs font-semibold tracking-widest uppercase"
+              style={{ color: C.gold }}
             >
-              <Ionicons
-                name="male-female-outline"
-                size={18}
-                color={COLORS.primary}
-              />
+              Giới tính
+            </Text>
+            <TouchableOpacity
+              className="flex-row items-center rounded-xl px-4 py-4"
+              style={{
+                backgroundColor: C.inputBg,
+                borderWidth: 1,
+                borderColor: C.inputBorder,
+              }}
+              onPress={() => setShowGenderPicker(true)}
+            >
+              <Ionicons name="male-female-outline" size={17} color={C.gold} />
               <Text
-                style={[
-                  styles.selectText,
-                  !formData.gender && { color: COLORS.textMuted },
-                ]}
+                className="flex-1 pl-3 text-base"
+                style={{ color: formData.gender ? C.white : C.muted }}
               >
                 {formData.gender === "MALE"
                   ? "Nam"
@@ -461,11 +654,7 @@ export default function ProfileScreen() {
                       ? "Khác"
                       : "Chọn giới tính"}
               </Text>
-              <Ionicons
-                name="chevron-down"
-                size={18}
-                color={COLORS.textMuted}
-              />
+              <Ionicons name="chevron-down" size={17} color={C.muted} />
             </TouchableOpacity>
           </View>
 
@@ -473,52 +662,42 @@ export default function ProfileScreen() {
             label="Ngày sinh"
             icon="calendar-outline"
             value={formData.dateOfBirth || ""}
-            onChangeText={(text) =>
-              setFormData({ ...formData, dateOfBirth: text })
-            }
+            onChangeText={(t) => setFormData({ ...formData, dateOfBirth: t })}
             placeholder="YYYY-MM-DD"
           />
 
-          {/* Save Button */}
           <TouchableOpacity
+            className="flex-row items-center justify-center rounded-xl py-4 mt-2"
+            style={{ backgroundColor: C.gold }}
             onPress={handleSaveProfile}
             disabled={isLoading || isUploading}
-            style={styles.saveButton}
           >
             {isLoading ? (
-              <ActivityIndicator color={COLORS.background} />
+              <ActivityIndicator color={C.bg} />
             ) : (
               <>
-                <Ionicons
-                  name="save-outline"
-                  size={20}
-                  color={COLORS.background}
-                />
-                <Text style={styles.saveButtonText}>Lưu thay đổi</Text>
+                <Ionicons name="save-outline" size={19} color={C.bg} />
+                <Text
+                  className="ml-2 font-bold text-base uppercase tracking-widest"
+                  style={{ color: C.bg }}
+                >
+                  Lưu thay đổi
+                </Text>
               </>
             )}
           </TouchableOpacity>
         </View>
 
-        {/* Security Section */}
-        <View style={styles.securitySection}>
-          <Text style={styles.sectionTitle}>Bảo mật</Text>
-
+        {/* Security — chỉ còn Đổi mật khẩu */}
+        <View className="px-5 mt-8">
+          <Text className="text-base font-bold mb-4" style={{ color: C.white }}>
+            Bảo mật
+          </Text>
           <MenuItem
             icon="lock-closed-outline"
             title="Đổi mật khẩu"
             subtitle="Cập nhật mật khẩu đăng nhập"
             onPress={() => setShowPasswordModal(true)}
-          />
-
-          <MenuItem
-            icon="log-out-outline"
-            iconColor={COLORS.error}
-            iconBgColor="rgba(239, 68, 68, 0.15)"
-            title="Đăng xuất"
-            subtitle="Thoát khỏi tài khoản"
-            onPress={handleLogout}
-            containerStyle={styles.logoutItem}
           />
         </View>
       </ScrollView>
@@ -529,10 +708,22 @@ export default function ProfileScreen() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ flex: 1 }}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Đổi mật khẩu</Text>
+          <View
+            className="flex-1 justify-end"
+            style={{ backgroundColor: "rgba(0,0,0,0.8)" }}
+          >
+            <View
+              className="rounded-t-3xl p-6 pb-10"
+              style={{
+                backgroundColor: C.bgLight,
+                borderTopWidth: 1,
+                borderTopColor: C.goldBorder,
+              }}
+            >
+              <View className="flex-row justify-between items-center mb-5">
+                <Text className="text-xl font-bold" style={{ color: C.white }}>
+                  Đổi mật khẩu
+                </Text>
                 <TouchableOpacity
                   onPress={() => {
                     setShowPasswordModal(false);
@@ -542,18 +733,30 @@ export default function ProfileScreen() {
                     dispatch(clearError());
                   }}
                 >
-                  <Ionicons name="close" size={24} color={COLORS.textMuted} />
+                  <Ionicons name="close" size={24} color={C.muted} />
                 </TouchableOpacity>
               </View>
-
-              <View style={styles.modalDivider} />
-
-              {error && (
-                <View style={styles.errorBox}>
-                  <Text style={styles.errorText}>{error}</Text>
+              <View
+                className="w-12 h-1 rounded-full mb-5"
+                style={{ backgroundColor: C.gold }}
+              />
+              {error ? (
+                <View
+                  className="rounded-xl p-3 mb-4"
+                  style={{
+                    backgroundColor: "rgba(239,68,68,0.12)",
+                    borderWidth: 1,
+                    borderColor: "rgba(239,68,68,0.25)",
+                  }}
+                >
+                  <Text
+                    className="text-center text-sm"
+                    style={{ color: C.red }}
+                  >
+                    {error}
+                  </Text>
                 </View>
-              )}
-
+              ) : null}
               <InputField
                 label="Mật khẩu hiện tại"
                 icon="lock-closed-outline"
@@ -562,7 +765,6 @@ export default function ProfileScreen() {
                 secureTextEntry
                 placeholder="Nhập mật khẩu hiện tại"
               />
-
               <InputField
                 label="Mật khẩu mới"
                 icon="lock-open-outline"
@@ -571,7 +773,6 @@ export default function ProfileScreen() {
                 secureTextEntry
                 placeholder="Nhập mật khẩu mới"
               />
-
               <InputField
                 label="Xác nhận mật khẩu"
                 icon="checkmark-circle-outline"
@@ -580,16 +781,21 @@ export default function ProfileScreen() {
                 secureTextEntry
                 placeholder="Nhập lại mật khẩu mới"
               />
-
               <TouchableOpacity
+                className="rounded-xl py-4 items-center mt-2"
+                style={{ backgroundColor: C.gold }}
                 onPress={handleChangePassword}
                 disabled={isLoading}
-                style={styles.modalButton}
               >
                 {isLoading ? (
-                  <ActivityIndicator color={COLORS.background} />
+                  <ActivityIndicator color={C.bg} />
                 ) : (
-                  <Text style={styles.modalButtonText}>Đổi mật khẩu</Text>
+                  <Text
+                    className="font-bold text-base uppercase tracking-widest"
+                    style={{ color: C.bg }}
+                  >
+                    Đổi mật khẩu
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -597,15 +803,28 @@ export default function ProfileScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Gender Picker Modal */}
+      {/* Gender Picker */}
       <Modal visible={showGenderPicker} animationType="fade" transparent>
         <TouchableOpacity
-          style={styles.pickerOverlay}
+          className="flex-1 items-center justify-center"
+          style={{ backgroundColor: "rgba(0,0,0,0.8)" }}
           activeOpacity={1}
           onPress={() => setShowGenderPicker(false)}
         >
-          <View style={styles.pickerContent}>
-            <Text style={styles.pickerTitle}>Chọn giới tính</Text>
+          <View
+            className="rounded-2xl p-5 w-4/5"
+            style={{
+              backgroundColor: C.bgLight,
+              borderWidth: 1,
+              borderColor: C.goldBorder,
+            }}
+          >
+            <Text
+              className="text-lg font-bold text-center mb-4"
+              style={{ color: C.white }}
+            >
+              Chọn giới tính
+            </Text>
             {[
               { value: "MALE", label: "Nam" },
               { value: "FEMALE", label: "Nữ" },
@@ -613,19 +832,21 @@ export default function ProfileScreen() {
             ].map((item) => (
               <TouchableOpacity
                 key={item.value}
+                className="flex-row items-center justify-between py-4"
+                style={{
+                  borderBottomWidth: 1,
+                  borderBottomColor: C.inputBorder,
+                }}
                 onPress={() => {
                   setFormData({ ...formData, gender: item.value });
                   setShowGenderPicker(false);
                 }}
-                style={styles.pickerItem}
               >
-                <Text style={styles.pickerItemText}>{item.label}</Text>
+                <Text className="text-base" style={{ color: C.white }}>
+                  {item.label}
+                </Text>
                 {formData.gender === item.value && (
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={22}
-                    color={COLORS.primary}
-                  />
+                  <Ionicons name="checkmark-circle" size={22} color={C.gold} />
                 )}
               </TouchableOpacity>
             ))}
@@ -635,388 +856,3 @@ export default function ProfileScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: COLORS.text,
-  },
-
-  // Avatar Section
-  avatarSection: {
-    alignItems: "center",
-    paddingVertical: 20,
-  },
-  avatarContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: COLORS.backgroundCard,
-    borderWidth: 3,
-    borderColor: COLORS.primary,
-    overflow: "hidden",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatar: {
-    width: "100%",
-    height: "100%",
-  },
-  avatarInitial: {
-    fontSize: 48,
-    fontWeight: "bold",
-    color: COLORS.primary,
-  },
-  avatarOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 36,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarLoading: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    borderRadius: 60,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  userName: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: COLORS.text,
-    marginTop: 12,
-  },
-  userEmail: {
-    color: COLORS.textSecondary,
-    fontSize: 14,
-    marginTop: 4,
-  },
-  roleBadge: {
-    backgroundColor: "rgba(216,201,123,0.15)",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: "rgba(216,201,123,0.3)",
-  },
-  roleText: {
-    color: COLORS.primary,
-    fontSize: 12,
-    fontWeight: "600",
-    textTransform: "uppercase",
-  },
-
-  // Form Section
-  formSection: {
-    paddingHorizontal: 20,
-    marginTop: 10,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: COLORS.text,
-    marginBottom: 16,
-  },
-  inputContainer: {
-    marginBottom: 16,
-  },
-  inputLabel: {
-    color: COLORS.primary,
-    marginBottom: 8,
-    fontSize: 12,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.inputBg,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.inputBorder,
-    paddingHorizontal: 14,
-  },
-  input: {
-    flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 10,
-    color: COLORS.text,
-    fontSize: 15,
-  },
-  inputDisabled: {
-    color: COLORS.textMuted,
-  },
-  selectWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.inputBg,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.inputBorder,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  selectText: {
-    flex: 1,
-    paddingHorizontal: 10,
-    color: COLORS.text,
-    fontSize: 15,
-  },
-  saveButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: COLORS.primary,
-    paddingVertical: 16,
-    borderRadius: 12,
-    marginTop: 10,
-  },
-  saveButtonText: {
-    color: COLORS.background,
-    fontWeight: "bold",
-    fontSize: 15,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginLeft: 8,
-  },
-
-  // Security Section
-  securitySection: {
-    paddingHorizontal: 20,
-    marginTop: 30,
-  },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.inputBg,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.inputBorder,
-    padding: 16,
-    marginBottom: 12,
-  },
-  menuIconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  menuContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  menuTitle: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  menuSubtitle: {
-    color: COLORS.textSecondary,
-    fontSize: 13,
-    marginTop: 2,
-  },
-  logoutItem: {
-    backgroundColor: "rgba(239, 68, 68, 0.1)",
-    borderColor: "rgba(239, 68, 68, 0.3)",
-  },
-
-  // Guest View
-  guestContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 40,
-    paddingVertical: 40,
-  },
-  guestIconBox: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: COLORS.backgroundCard,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-    borderWidth: 2,
-    borderColor: COLORS.inputBorder,
-  },
-  guestTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: COLORS.text,
-    marginBottom: 12,
-  },
-  guestText: {
-    color: COLORS.textSecondary,
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 30,
-  },
-  loginButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 12,
-    width: "100%",
-  },
-  loginButtonText: {
-    color: COLORS.background,
-    fontSize: 16,
-    fontWeight: "bold",
-    marginLeft: 8,
-  },
-  registerLink: {
-    marginTop: 16,
-  },
-  registerLinkText: {
-    color: COLORS.textSecondary,
-    fontSize: 14,
-  },
-  featuresContainer: {
-    paddingHorizontal: 30,
-    paddingBottom: 40,
-  },
-  featuresTitle: {
-    color: COLORS.text,
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  featureItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  featureIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(216,201,123,0.1)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  featureText: {
-    color: COLORS.textSecondary,
-    fontSize: 14,
-  },
-
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.8)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: COLORS.backgroundLight,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 40,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(216,201,123,0.3)",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: COLORS.text,
-  },
-  modalDivider: {
-    height: 2,
-    width: 50,
-    backgroundColor: COLORS.primary,
-    marginBottom: 20,
-    borderRadius: 1,
-  },
-  modalButton: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  modalButtonText: {
-    color: COLORS.background,
-    fontWeight: "bold",
-    fontSize: 15,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  errorBox: {
-    backgroundColor: "rgba(239, 68, 68, 0.15)",
-    borderWidth: 1,
-    borderColor: "rgba(239, 68, 68, 0.3)",
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 16,
-  },
-  errorText: {
-    color: COLORS.error,
-    textAlign: "center",
-    fontSize: 13,
-  },
-
-  // Gender Picker
-  pickerOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.8)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  pickerContent: {
-    backgroundColor: COLORS.backgroundLight,
-    borderRadius: 16,
-    padding: 20,
-    width: "80%",
-    borderWidth: 1,
-    borderColor: "rgba(216,201,123,0.3)",
-  },
-  pickerTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: COLORS.text,
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  pickerItem: {
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.inputBorder,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  pickerItemText: {
-    color: COLORS.text,
-    fontSize: 16,
-  },
-});

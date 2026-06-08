@@ -29,7 +29,6 @@ apiService.interceptors.request.use(
 apiService.interceptors.response.use(
   (response: AxiosResponse) => response.data,
   (error: AxiosError) => {
-    console.error("API Error:", error.response?.status, error.response?.data);
     return Promise.reject(error);
   },
 );

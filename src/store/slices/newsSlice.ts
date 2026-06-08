@@ -1,6 +1,21 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import apiService from "../../services/apiService";
-import type { Post } from "../../models/news";
+
+interface Post {
+  id: number;
+  title: string;
+  slug: string;
+  summary?: string;
+  content?: string;
+  thumbnailUrl?: string;
+  status?: string;
+  createdAt?: string;
+  categoryId?: number | null;
+  categorySlug?: string | null;
+  categoryName?: string | null;
+  isFeatured?: boolean;
+  tags?: string[];
+}
 
 interface NewsState {
   posts: Post[];
@@ -16,19 +31,26 @@ const initialState: NewsState = {
   error: null,
 };
 
-// Lấy danh sách tin tức
+const normalizePost = (item: any): Post => ({
+  ...item,
+  isFeatured: item.isFeatured ?? item.featured ?? false,
+  categoryName: item.categoryName ?? item.category?.name ?? null,
+  categorySlug: item.categorySlug ?? item.category?.slug ?? null,
+});
+
 export const fetchPosts = createAsyncThunk(
   "news/fetchPosts",
-  async (_, { rejectWithValue }) => {
+  async ({ lang = "vi" }: { lang?: string } = {}, { rejectWithValue }) => {
     try {
       const response: any = await apiService.get("/posts", {
-        params: { page: 0, size: 20 },
+        params: { page: 0, size: 50, lang },
       });
-      // Handle các dạng response khác nhau
-      if (Array.isArray(response)) return response;
-      if (response?.content && Array.isArray(response.content))
-        return response.content;
-      return [];
+      const raw = Array.isArray(response)
+        ? response
+        : response?.content && Array.isArray(response.content)
+          ? response.content
+          : [];
+      return raw.filter(Boolean).map(normalizePost);
     } catch (error: any) {
       return rejectWithValue(
         error.response?.data?.message || "Lỗi tải tin tức",
@@ -37,12 +59,16 @@ export const fetchPosts = createAsyncThunk(
   },
 );
 
-// Lấy chi tiết tin tức
 export const fetchPostDetail = createAsyncThunk(
   "news/fetchDetail",
-  async (slug: string, { rejectWithValue }) => {
+  async (
+    { slug, lang = "vi" }: { slug: string; lang?: string },
+    { rejectWithValue },
+  ) => {
     try {
-      const response = await apiService.get<Post>(`/posts/${slug}`);
+      const response = await apiService.get<Post>(`/posts/${slug}`, {
+        params: { lang },
+      });
       return response;
     } catch (error: any) {
       return rejectWithValue(
@@ -62,7 +88,6 @@ const newsSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Fetch posts
       .addCase(fetchPosts.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -76,8 +101,6 @@ const newsSlice = createSlice({
         state.error = action.payload as string;
         state.posts = [];
       })
-
-      // Fetch post detail
       .addCase(fetchPostDetail.pending, (state) => {
         state.isLoading = true;
       })
