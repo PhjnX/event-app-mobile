@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "scheme": "ems-app",
     "splash": {
       "image": "./assets/splash.png",
@@ -15,11 +14,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.phongx2003.ems",
+      "bundleIdentifier": "webie.ems",
       "icon": "./assets/icon.png"
     },
     "android": {
-      "package": "com.phongx2003.ems",
+      "package": "webie.ems",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -47,7 +46,16 @@
         }
       ],
       "expo-video",
-      "expo-audio"
+      "expo-audio",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "newArchEnabled": true,
+            "bridgelessEnabled": false
+          }
+        }
+      ]
     ],
     "extra": {
       "eas": {

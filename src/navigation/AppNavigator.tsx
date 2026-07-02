@@ -38,17 +38,18 @@ export default function AppNavigator() {
       try {
         const token = await storageService.getItem(STORAGE_KEYS.ACCESS_TOKEN);
         if (!token) {
-          setIsInitializing(false);
           return;
         }
+
         await dispatch(fetchCurrentUser()).unwrap();
       } catch (error) {
+        console.warn("Lỗi xác thực người dùng hoặc token hết hạn:", error);
       } finally {
         setIsInitializing(false);
       }
     };
     initAuth();
-  }, []);
+  }, [dispatch]);
 
   const handleSkip = useCallback(
     () => dispatch(setSkippedAuth(true)),

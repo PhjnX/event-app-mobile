@@ -3,7 +3,7 @@ import { View, Image, Animated, StyleSheet, Easing } from "react-native";
 
 const logo = require("../../assets/Logo_EMS.webp");
 
-interface Props {
+export interface SplashArtScreenProps {
   onFinish: () => void;
 }
 
@@ -59,7 +59,7 @@ function WaveDot({ delay, size = 8 }: { delay: number; size?: number }) {
     );
     wave.start();
     return () => wave.stop();
-  }, []);
+  }, [delay, opacity, scale, translateY]);
 
   return (
     <Animated.View
@@ -76,7 +76,7 @@ function WaveDot({ delay, size = 8 }: { delay: number; size?: number }) {
   );
 }
 
-export default function SplashArtScreen({ onFinish }: Props) {
+const SplashArtScreen: React.FC<SplashArtScreenProps> = ({ onFinish }) => {
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const logoScale = useRef(new Animated.Value(0.6)).current;
   const ringScale = useRef(new Animated.Value(0.6)).current;
@@ -84,31 +84,32 @@ export default function SplashArtScreen({ onFinish }: Props) {
   const ringRotate = useRef(new Animated.Value(0)).current;
   const ring2Rotate = useRef(new Animated.Value(0)).current;
   const pulseScale = useRef(new Animated.Value(1)).current;
-  const tagOpacity = useRef(new Animated.Value(0)).current;
-  const tagY = useRef(new Animated.Value(10)).current;
   const dotsOpacity = useRef(new Animated.Value(0)).current;
   const screenOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    Animated.loop(
+    // Các vòng lặp vô hạn chạy độc lập hoàn toàn ở luồng Native Driver
+    const loop1 = Animated.loop(
       Animated.timing(ringRotate, {
         toValue: 1,
         duration: 3000,
         easing: Easing.linear,
         useNativeDriver: true,
       }),
-    ).start();
+    );
+    loop1.start();
 
-    Animated.loop(
+    const loop2 = Animated.loop(
       Animated.timing(ring2Rotate, {
         toValue: 1,
         duration: 2000,
         easing: Easing.linear,
         useNativeDriver: true,
       }),
-    ).start();
+    );
+    loop2.start();
 
-    Animated.loop(
+    const loop3 = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseScale, {
           toValue: 1.06,
@@ -123,9 +124,11 @@ export default function SplashArtScreen({ onFinish }: Props) {
           useNativeDriver: true,
         }),
       ]),
-    ).start();
+    );
+    loop3.start();
 
-    Animated.sequence([
+    // Chuỗi Animation xuất hiện cấu trúc giao diện
+    const mainSequence = Animated.sequence([
       Animated.parallel([
         Animated.spring(logoScale, {
           toValue: 1,
@@ -150,39 +153,39 @@ export default function SplashArtScreen({ onFinish }: Props) {
           useNativeDriver: true,
         }),
       ]),
-
-      Animated.delay(300),
-
-      Animated.parallel([
-        Animated.timing(tagOpacity, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.spring(tagY, {
-          toValue: 0,
-          tension: 60,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-      ]),
-
-      Animated.delay(200),
-
+      Animated.delay(500),
       Animated.timing(dotsOpacity, {
         toValue: 1,
         duration: 400,
         useNativeDriver: true,
       }),
-
       Animated.delay(3000),
-
       Animated.timing(screenOpacity, {
         toValue: 0,
         duration: 500,
         useNativeDriver: true,
       }),
-    ]).start(() => onFinish());
+    ]);
+    mainSequence.start();
+
+    // SỬA ĐỔI QUYẾT ĐỊNH: Dùng định thời gian JS độc lập để trigger onFinish
+    // Tổng thời gian xuất hiện + delay + fadeout = ~5000ms
+    const timeoutId = setTimeout(() => {
+      // Dọn dẹp dừng các loop để giải phóng tài nguyên CPU
+      loop1.stop();
+      loop2.stop();
+      loop3.stop();
+      mainSequence.stop();
+      onFinish();
+    }, 5000);
+
+    return () => {
+      clearTimeout(timeoutId);
+      loop1.stop();
+      loop2.stop();
+      loop3.stop();
+      mainSequence.stop();
+    };
   }, []);
 
   const spin1 = ringRotate.interpolate({
@@ -220,7 +223,7 @@ export default function SplashArtScreen({ onFinish }: Props) {
           ]}
         />
 
-        <Animated.View style={[styles.glow, { opacity: ringOpacity }]} />
+        <View style={styles.glow} />
 
         <Animated.View
           style={{
@@ -241,7 +244,7 @@ export default function SplashArtScreen({ onFinish }: Props) {
       </Animated.View>
     </Animated.View>
   );
-}
+};
 
 const RING_OUTER = 180;
 const RING_INNER = 150;
@@ -283,23 +286,11 @@ const styles = StyleSheet.create({
     width: LOGO_SIZE + 30,
     height: LOGO_SIZE + 30,
     borderRadius: 999,
-    backgroundColor: "rgba(216,201,123,0.05)",
-    shadowColor: "#D8C97B",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 30,
+    backgroundColor: "rgba(216,201,123,0.02)",
   },
   logo: {
     width: LOGO_SIZE,
     height: LOGO_SIZE,
-  },
-  tagline: {
-    color: "#D8C97B",
-    fontSize: 13,
-    fontFamily: "Inter_500Medium",
-    letterSpacing: 3,
-    textTransform: "uppercase",
-    marginBottom: 28,
   },
   dotsWrapper: {
     flexDirection: "row",
@@ -307,3 +298,5 @@ const styles = StyleSheet.create({
     height: 30,
   },
 });
+
+export default SplashArtScreen;
