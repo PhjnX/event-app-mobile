@@ -124,9 +124,12 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
     const result = await dispatch(
       loginUser({ email: loginEmail, password: loginPassword }),
     );
+
+    console.log("LOGIN RESULT TYPE:", result.type);
+
     if (loginUser.fulfilled.match(result)) {
-      dispatch(fetchCurrentUser());
       onSkip();
+      dispatch(fetchCurrentUser()).catch(() => {});
     }
   };
 

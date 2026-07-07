@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import apiService from "../../services/apiService";
+import apiService, { setClientToken } from "../../services/apiService";
 import imageService, { ImageFile } from "../../services/imageService";
 import storageService from "../../services/storageService";
 import { STORAGE_KEYS } from "../../constants";
@@ -39,6 +39,8 @@ export const loginUser = createAsyncThunk(
       const token = response.token || response.accessToken;
       if (token) {
         await storageService.setItem(STORAGE_KEYS.ACCESS_TOKEN, token);
+        // Lưu token vào RAM của apiService ngay lập tức
+        setClientToken(token);
         // Xóa skippedAuth khi login thành công
         await storageService.removeItem("skippedAuth");
       }
@@ -186,11 +188,15 @@ export const fetchCurrentUser = createAsyncThunk(
       const token = await storageService.getItem(STORAGE_KEYS.ACCESS_TOKEN);
       if (!token) return rejectWithValue("Không tìm thấy token");
 
+      // Cập nhật lại cache RAM từ token vừa tìm được
+      setClientToken(token);
+
       const response = await apiService.get<User>("/users/me");
       return response;
     } catch (error: any) {
       if (error.response?.status === 401) {
         await storageService.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+        setClientToken(null); // Giải phóng token trong RAM
       }
       return rejectWithValue(error.response?.data?.message || "Lỗi xác thực");
     }
@@ -205,6 +211,7 @@ export const logoutUser = createAsyncThunk("auth/logout", async () => {
     // Ignore error
   } finally {
     await storageService.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+    setClientToken(null); // Xóa sạch token trong RAM khi logout
     await storageService.removeItem("skippedAuth");
   }
   return null;
@@ -219,6 +226,8 @@ export const checkStoredAuth = createAsyncThunk(
       const skippedAuth = await storageService.getItem("skippedAuth");
 
       if (token) {
+        // Đồng bộ hóa token tìm được vào RAM cache
+        setClientToken(token);
         // Có token -> fetch user info
         await dispatch(fetchCurrentUser());
         return { hasToken: true, skippedAuth: false };
@@ -254,9 +263,10 @@ const authSlice = createSlice({
       state.skippedAuth = false;
       state.isAuthenticated = false;
       state.user = null;
-      // Xóa khỏi storage
+      // Xóa khỏi storage và RAM
       storageService.removeItem("skippedAuth");
       storageService.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+      setClientToken(null);
     },
     setVerificationEmail: (state, action) => {
       state.verificationEmail = action.payload;
@@ -390,8 +400,6 @@ const authSlice = createSlice({
       })
       .addCase(fetchCurrentUser.rejected, (state) => {
         state.isLoading = false;
-        state.isAuthenticated = false;
-        state.user = null;
       })
 
       // Check stored auth

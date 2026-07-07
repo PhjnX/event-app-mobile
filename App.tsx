@@ -3,7 +3,6 @@ import { StatusBar } from "expo-status-bar";
 import { Provider } from "react-redux";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
-  useFonts,
   Inter_400Regular,
   Inter_500Medium,
   Inter_600SemiBold,
@@ -14,6 +13,16 @@ import { useState, useEffect } from "react";
 import { View } from "react-native";
 import Toast from "react-native-toast-message";
 import * as SplashScreen from "expo-splash-screen";
+import * as Font from "expo-font";
+
+import {
+  AntDesign,
+  Ionicons,
+  MaterialIcons,
+  FontAwesome,
+  MaterialCommunityIcons,
+  Feather,
+} from "@expo/vector-icons";
 
 import store from "./src/store";
 import AppNavigator from "./src/navigation/AppNavigator";
@@ -22,45 +31,50 @@ import { NotificationProvider } from "./src/context/NotificationContext";
 import SplashArtScreen from "./src/screens/SplashScreen";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
-// Giữ màn hình native splash không tự động ẩn
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function App() {
   const [showAnimatedSplash, setShowAnimatedSplash] = useState(true);
+  const [appIsReady, setAppIsReady] = useState(false);
 
-  const [fontsLoaded] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-  });
-
-  // Xử lý ẩn Native Splash và Fallback luồng chuyển màn hình
   useEffect(() => {
-    if (!fontsLoaded) return;
-
-    // 1. Ép ẩn Native Splash ngay khi font load xong để lộ Custom Splash/App UI
-    const hideNativeSplash = async () => {
+    const prepareApp = async () => {
       try {
-        await SplashScreen.hideAsync();
+        await Font.loadAsync({
+          Inter_400Regular,
+          Inter_500Medium,
+          Inter_600SemiBold,
+          Inter_700Bold,
+          ...AntDesign.font,
+          ...Ionicons.font,
+          ...MaterialIcons.font,
+          ...FontAwesome.font,
+          ...MaterialCommunityIcons.font,
+          ...Feather.font,
+        });
       } catch (e) {
-        console.warn("Lỗi khi ẩn native splash screen:", e);
+        console.warn("Lỗi khi nạp asset font hoặc icon:", e);
+      } finally {
+        try {
+          await SplashScreen.hideAsync();
+        } catch (e) {}
+        setAppIsReady(true);
       }
     };
-    hideNativeSplash();
 
-    // 2. Cơ chế dự phòng: Tự động tắt Animated Splash sau 3.5 giây nếu có lỗi sập ngầm
+    prepareApp();
+
     const timeoutId = setTimeout(() => {
       setShowAnimatedSplash(false);
     }, 3500);
 
     return () => clearTimeout(timeoutId);
-  }, [fontsLoaded]);
+  }, []);
 
-  // Nếu font chưa load xong, giữ nguyên màn hình trống (hoặc vẫn đang hiển thị Native Splash)
-  if (!fontsLoaded) return null;
+  if (!appIsReady) {
+    return <View style={{ flex: 1, backgroundColor: "#0a0a0a" }} />;
+  }
 
-  // Hiển thị màn hình Animated Splash Custom
   if (showAnimatedSplash) {
     return (
       <View style={{ flex: 1 }}>
@@ -73,7 +87,6 @@ export default function App() {
     );
   }
 
-  // Luồng chính đi vào ứng dụng
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Provider store={store}>

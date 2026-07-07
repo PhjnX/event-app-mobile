@@ -33,4 +33,5 @@ export type RootStackParamList = {
   Notifications: undefined;
   RegisterOrganizer: undefined;
   NotificationsOrganizerScreen: undefined;
+  InitialAuth: undefined;
 };

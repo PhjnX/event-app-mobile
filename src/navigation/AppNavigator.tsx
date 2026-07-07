@@ -60,12 +60,19 @@ export default function AppNavigator() {
 
   const showAuth = !isAuthenticated && !skippedAuth;
   const isOrganizer = isAuthenticated && user?.role === ROLES.ORGANIZER;
+  console.log(
+    "APPNAV RENDER — isAuthenticated:",
+    isAuthenticated,
+    "showAuth:",
+    showAuth,
+  );
 
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {showAuth ? (
-          <Stack.Screen name="Auth">
+          // Đổi tên từ "Auth" thành "InitialAuth" để tránh xung đột định danh với Modal Auth ở dưới
+          <Stack.Screen name="InitialAuth">
             {() => <AuthStackScreen onSkip={handleSkip} />}
           </Stack.Screen>
         ) : isOrganizer ? (
@@ -114,6 +121,7 @@ export default function AppNavigator() {
               name="RegisterOrganizer"
               component={RegisterOrganizerScreen}
             />
+            {/* Giữ nguyên tên "Auth" ở đây để các màn hình khác gọi Modal này không bị lỗi */}
             <Stack.Screen name="Auth" options={{ presentation: "modal" }}>
               {(props) => (
                 <AuthStackScreen
