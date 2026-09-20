@@ -17,16 +17,19 @@ interface Post {
   tags?: string[];
 }
 
+/**
+ * Chỉ giữ danh sách bài. Chi tiết bài do từng màn NewsDetail tự giữ trong state
+ * riêng: trước đây cả app dùng chung một `postDetail` ở đây, nên mở bài liên
+ * quan rồi quay lại thì bài trước đã bị xoá mất dữ liệu và xoay mãi.
+ */
 interface NewsState {
   posts: Post[];
-  postDetail: Post | null;
   isLoading: boolean;
   error: string | null;
 }
 
 const initialState: NewsState = {
   posts: [],
-  postDetail: null,
   isLoading: false,
   error: null,
 };
@@ -59,6 +62,7 @@ export const fetchPosts = createAsyncThunk(
   },
 );
 
+// Không có reducer: màn gọi .unwrap() rồi tự giữ kết quả (xem ghi chú NewsState)
 export const fetchPostDetail = createAsyncThunk(
   "news/fetchDetail",
   async (
@@ -69,7 +73,7 @@ export const fetchPostDetail = createAsyncThunk(
       const response = await apiService.get<Post>(`/posts/${slug}`, {
         params: { lang },
       });
-      return response;
+      return normalizePost(response);
     } catch (error: any) {
       return rejectWithValue(
         error.response?.data?.message || "Không tìm thấy bài viết",
@@ -81,11 +85,7 @@ export const fetchPostDetail = createAsyncThunk(
 const newsSlice = createSlice({
   name: "news",
   initialState,
-  reducers: {
-    clearPostDetail: (state) => {
-      state.postDetail = null;
-    },
-  },
+  reducers: {},
   extraReducers: (builder) => {
     builder
       .addCase(fetchPosts.pending, (state) => {
@@ -94,26 +94,16 @@ const newsSlice = createSlice({
       })
       .addCase(fetchPosts.fulfilled, (state, action) => {
         state.isLoading = false;
+        state.error = null;
         state.posts = action.payload || [];
       })
+      // Giữ danh sách cũ khi tải lại thất bại. Trước đây gán posts = [] ở đây,
+      // nên kéo làm mới lúc mạng chập chờn là màn Tin tức trống trơn.
       .addCase(fetchPosts.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload as string;
-        state.posts = [];
-      })
-      .addCase(fetchPostDetail.pending, (state) => {
-        state.isLoading = true;
-      })
-      .addCase(fetchPostDetail.fulfilled, (state, action) => {
-        state.isLoading = false;
-        state.postDetail = action.payload;
-      })
-      .addCase(fetchPostDetail.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
       });
   },
 });
 
-export const { clearPostDetail } = newsSlice.actions;
 export default newsSlice.reducer;

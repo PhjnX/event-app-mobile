@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { ToastConfig } from "react-native-toast-message";
+import { COLORS } from "../../constants/theme";
 
 type ToastProps = {
   text1?: string;
@@ -118,8 +119,8 @@ export const toastConfig: ToastConfig = {
   info: ({ text1, text2 }: ToastProps) => (
     <ToastBase
       icon="information-circle"
-      iconColor="#D8C97B"
-      accentColor="#D8C97B"
+      iconColor={COLORS.primary}
+      accentColor={COLORS.primary}
       text1={text1}
       text2={text2}
     />

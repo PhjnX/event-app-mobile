@@ -11,17 +11,18 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useAppDispatch, useAppSelector } from "../../hooks/useRedux";
 import { registerOrganizer } from "../../store/slices/organizerSlice";
+import Toast from "react-native-toast-message";
+import { COLORS } from "../../constants/theme";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
-  gold: "#D8C97B",
+  gold: COLORS.primary,
   goldDim: "rgba(216,201,123,0.10)",
   goldBorder: "rgba(216,201,123,0.22)",
   bg: "#060606",
@@ -460,10 +461,11 @@ export default function RegisterOrganizerScreen() {
     }
     const { name, email, phone, orgName, message } = form;
     if (!name.trim() || !email.trim() || !phone.trim()) {
-      Alert.alert(
-        "Thiếu thông tin",
-        "Vui lòng điền đầy đủ họ tên, email và số điện thoại.",
-      );
+      Toast.show({
+      type: "info",
+      text1: "Thiếu thông tin",
+      text2: "Vui lòng điền đầy đủ họ tên, email và số điện thoại.",
+    });
       return;
     }
     setIsSubmitting(true);
@@ -483,7 +485,11 @@ export default function RegisterOrganizerScreen() {
       // ✅ unwrap() throw string vì rejectWithValue trả về string
       const msg =
         typeof err === "string" ? err : err?.message || "Vui lòng thử lại sau.";
-      Alert.alert("Gửi thất bại", msg);
+      Toast.show({
+      type: "error",
+      text1: "Gửi thất bại",
+      text2: msg,
+    });
     } finally {
       setIsSubmitting(false);
     }

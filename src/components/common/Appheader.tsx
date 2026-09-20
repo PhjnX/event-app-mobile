@@ -17,6 +17,7 @@ import { BlurView } from "expo-blur";
 import { useAppSelector, useAppDispatch } from "../../hooks/useRedux";
 import { logoutUser } from "../../store/slices/authSlice";
 import { useNotifications } from "../../context/NotificationContext";
+import { COLORS } from "../../constants/theme";
 
 const LOGO = require("../../../assets/Logo_EMS.webp");
 
@@ -282,7 +283,7 @@ export default function AppHeader({ title, subtitle }: AppHeaderProps) {
                     name={item.icon}
                     size={18}
                     color={
-                      item.danger ? "#ef4444" : item.accent ? "#D8C97B" : "#aaa"
+                      item.danger ? "#ef4444" : item.accent ? COLORS.primary : "#aaa"
                     }
                   />
                 </View>
@@ -345,7 +346,7 @@ const ss = StyleSheet.create({
     minWidth: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: "#D8C97B",
+    backgroundColor: COLORS.primary,
     borderWidth: 1.5,
     borderColor: "#0a0a0a",
     alignItems: "center",
@@ -363,7 +364,7 @@ const ss = StyleSheet.create({
     height: 38,
     borderRadius: 19,
     borderWidth: 2,
-    borderColor: "#D8C97B",
+    borderColor: COLORS.primary,
     position: "relative",
   },
   avatar: { width: 34, height: 34, borderRadius: 17 },
@@ -375,7 +376,7 @@ const ss = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarInitial: { color: "#D8C97B", fontSize: 15, fontWeight: "800" },
+  avatarInitial: { color: COLORS.primary, fontSize: 15, fontWeight: "800" },
   onlineDot: {
     position: "absolute",
     bottom: 0,
@@ -425,7 +426,7 @@ const ss = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(216,201,123,0.3)",
   },
-  menuAvatarInitial: { color: "#D8C97B", fontSize: 18, fontWeight: "800" },
+  menuAvatarInitial: { color: COLORS.primary, fontSize: 18, fontWeight: "800" },
   menuName: { color: "#fff", fontSize: 14, fontWeight: "700" },
   menuEmail: { color: "#555", fontSize: 11, marginTop: 2 },
   menuDivider: {
@@ -458,7 +459,7 @@ const ss = StyleSheet.create({
     borderColor: "rgba(239,68,68,0.25)",
   },
   menuLabel: { color: "#ddd", fontSize: 13, fontWeight: "600" },
-  menuLabelAccent: { color: "#D8C97B" },
+  menuLabelAccent: { color: COLORS.primary },
   menuLabelDanger: { color: "#ef4444" },
   menuSub: { color: "#444", fontSize: 10, marginTop: 2 },
 });

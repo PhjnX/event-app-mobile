@@ -34,12 +34,14 @@ import {
 import storageService from "../../services/storageService";
 import { STORAGE_KEYS } from "../../constants";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import Toast from "react-native-toast-message";
+import { COLORS as THEME } from "../../constants/theme";
 const logo = require("../../../assets/Logo_EMS.webp");
 
 const { width } = Dimensions.get("window");
 
 const COLORS = {
-  primary: "#D8C97B",
+  primary: THEME.primary,
   primaryDark: "#b5a65f",
   background: "#0a0a0a",
   backgroundLight: "#1a1a1a",
@@ -49,7 +51,7 @@ const COLORS = {
   textMuted: "#666666",
   inputBg: "rgba(255,255,255,0.05)",
   inputBorder: "rgba(255,255,255,0.1)",
-  inputBorderFocus: "#D8C97B",
+  inputBorderFocus: THEME.primary,
   error: "#ef4444",
   success: "#22c55e",
   google: "#DB4437",
@@ -117,7 +119,11 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
 
   const handleLogin = async () => {
     if (!loginEmail || !loginPassword) {
-      Alert.alert("Thông báo", "Vui lòng nhập email và mật khẩu!");
+      Toast.show({
+      type: "info",
+      text1: "Thông báo",
+      text2: "Vui lòng nhập email và mật khẩu!",
+    });
       return;
     }
     dispatch(clearError());
@@ -125,7 +131,6 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
       loginUser({ email: loginEmail, password: loginPassword }),
     );
 
-    console.log("LOGIN RESULT TYPE:", result.type);
 
     if (loginUser.fulfilled.match(result)) {
       onSkip();
@@ -160,11 +165,19 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
           dispatch(fetchCurrentUser());
           onSkip();
         } else {
-          Alert.alert("Lỗi", "Đăng nhập Google thất bại.");
+          Toast.show({
+      type: "error",
+      text1: "Lỗi",
+      text2: "Đăng nhập Google thất bại.",
+    });
         }
       }
     } catch (error) {
-      Alert.alert("Lỗi", "Không thể mở trình duyệt đăng nhập.");
+      Toast.show({
+      type: "error",
+      text1: "Lỗi",
+      text2: "Không thể mở trình duyệt đăng nhập.",
+    });
     }
   };
 
@@ -175,15 +188,27 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
       !registerPassword ||
       !registerConfirmPassword
     ) {
-      Alert.alert("Thông báo", "Vui lòng điền đầy đủ thông tin!");
+      Toast.show({
+      type: "info",
+      text1: "Thông báo",
+      text2: "Vui lòng điền đầy đủ thông tin!",
+    });
       return;
     }
     if (registerPassword !== registerConfirmPassword) {
-      Alert.alert("Thông báo", "Mật khẩu xác nhận không khớp!");
+      Toast.show({
+      type: "info",
+      text1: "Thông báo",
+      text2: "Mật khẩu xác nhận không khớp!",
+    });
       return;
     }
     if (registerPassword.length < 6) {
-      Alert.alert("Thông báo", "Mật khẩu phải có ít nhất 6 ký tự!");
+      Toast.show({
+      type: "info",
+      text1: "Thông báo",
+      text2: "Mật khẩu phải có ít nhất 6 ký tự!",
+    });
       return;
     }
     dispatch(clearError());
@@ -199,7 +224,11 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
 
   const handleVerifyEmail = async () => {
     if (!verifyOtp || verifyOtp.length < 4) {
-      Alert.alert("Thông báo", "Vui lòng nhập mã xác thực!");
+      Toast.show({
+      type: "info",
+      text1: "Thông báo",
+      text2: "Vui lòng nhập mã xác thực!",
+    });
       return;
     }
     const result = await dispatch(
@@ -228,12 +257,20 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
   };
 
   const handleResendCode = async () => {
-    Alert.alert("Thông báo", "Đã gửi lại mã xác thực đến email của bạn!");
+    Toast.show({
+      type: "info",
+      text1: "Thông báo",
+      text2: "Đã gửi lại mã xác thực đến email của bạn!",
+    });
   };
 
   const handleForgotPassword = async () => {
     if (!forgotEmail) {
-      Alert.alert("Thông báo", "Vui lòng nhập email!");
+      Toast.show({
+      type: "info",
+      text1: "Thông báo",
+      text2: "Vui lòng nhập email!",
+    });
       return;
     }
     dispatch(clearError());
@@ -245,7 +282,11 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
 
   const handleVerifyResetOtp = () => {
     if (!forgotOtp || forgotOtp.length < 4) {
-      Alert.alert("Thông báo", "Vui lòng nhập mã xác thực!");
+      Toast.show({
+      type: "info",
+      text1: "Thông báo",
+      text2: "Vui lòng nhập mã xác thực!",
+    });
       return;
     }
     setForgotStep("newPassword");
@@ -253,15 +294,27 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
 
   const handleResetPassword = async () => {
     if (!newPassword || !confirmNewPassword) {
-      Alert.alert("Thông báo", "Vui lòng nhập mật khẩu mới!");
+      Toast.show({
+      type: "info",
+      text1: "Thông báo",
+      text2: "Vui lòng nhập mật khẩu mới!",
+    });
       return;
     }
     if (newPassword !== confirmNewPassword) {
-      Alert.alert("Thông báo", "Mật khẩu xác nhận không khớp!");
+      Toast.show({
+      type: "info",
+      text1: "Thông báo",
+      text2: "Mật khẩu xác nhận không khớp!",
+    });
       return;
     }
     if (newPassword.length < 6) {
-      Alert.alert("Thông báo", "Mật khẩu phải có ít nhất 6 ký tự!");
+      Toast.show({
+      type: "info",
+      text1: "Thông báo",
+      text2: "Mật khẩu phải có ít nhất 6 ký tự!",
+    });
       return;
     }
     const result = await dispatch(

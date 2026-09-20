@@ -6,12 +6,12 @@ import {
   ScrollView,
   TextInput,
   Image,
-  Alert,
   ActivityIndicator,
   Modal,
   Platform,
   KeyboardAvoidingView,
   Dimensions,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -26,11 +26,14 @@ import {
   clearError,
 } from "../../store/slices/authSlice";
 import type { User } from "../../models/user";
+import { MODERATION_CONTACT_EMAIL } from "../../constants/moderation";
+import Toast from "react-native-toast-message";
+import { COLORS } from "../../constants/theme";
 
 const { width } = Dimensions.get("window");
 
 const C = {
-  gold: "#D8C97B",
+  gold: COLORS.primary,
   goldDark: "#b5a65f",
   goldFaint: "rgba(216,201,123,0.08)",
   goldBorder: "rgba(216,201,123,0.25)",
@@ -195,7 +198,11 @@ export default function ProfileScreen() {
     const permissionResult =
       await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
-      Alert.alert("Thông báo", "Cần cấp quyền truy cập thư viện ảnh!");
+      Toast.show({
+      type: "info",
+      text1: "Thông báo",
+      text2: "Cần cấp quyền truy cập thư viện ảnh!",
+    });
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -218,7 +225,11 @@ export default function ProfileScreen() {
       if (uploadAvatar.fulfilled.match(uploadResult)) {
         currentAvatarUrl = uploadResult.payload as string;
       } else {
-        Alert.alert("Lỗi", "Upload ảnh thất bại. Vui lòng thử lại.");
+        Toast.show({
+      type: "error",
+      text1: "Lỗi",
+      text2: "Upload ảnh thất bại. Vui lòng thử lại.",
+    });
         return;
       }
     }
@@ -226,25 +237,45 @@ export default function ProfileScreen() {
       updateUserProfile({ ...formData, avatarUrl: currentAvatarUrl }),
     );
     if (updateUserProfile.fulfilled.match(result)) {
-      Alert.alert("Thành công", "Cập nhật thông tin thành công!");
+      Toast.show({
+      type: "success",
+      text1: "Thành công",
+      text2: "Cập nhật thông tin thành công!",
+    });
       setSelectedFile(null);
       setPreviewAvatar(null);
     } else {
-      Alert.alert("Lỗi", error || "Cập nhật thất bại. Vui lòng thử lại.");
+      Toast.show({
+      type: "error",
+      text1: "Lỗi",
+      text2: error || "Cập nhật thất bại. Vui lòng thử lại.",
+    });
     }
   }, [dispatch, formData, selectedFile, error]);
 
   const handleChangePassword = useCallback(async () => {
     if (!oldPassword || !newPassword || !confirmPassword) {
-      Alert.alert("Thông báo", "Vui lòng điền đầy đủ thông tin!");
+      Toast.show({
+      type: "info",
+      text1: "Thông báo",
+      text2: "Vui lòng điền đầy đủ thông tin!",
+    });
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert("Thông báo", "Mật khẩu xác nhận không khớp!");
+      Toast.show({
+      type: "info",
+      text1: "Thông báo",
+      text2: "Mật khẩu xác nhận không khớp!",
+    });
       return;
     }
     if (newPassword.length < 6) {
-      Alert.alert("Thông báo", "Mật khẩu mới phải có ít nhất 6 ký tự!");
+      Toast.show({
+      type: "info",
+      text1: "Thông báo",
+      text2: "Mật khẩu mới phải có ít nhất 6 ký tự!",
+    });
       return;
     }
     dispatch(clearError());
@@ -252,13 +283,21 @@ export default function ProfileScreen() {
       changePassword({ oldPassword, newPassword, confirmPassword }),
     );
     if (changePassword.fulfilled.match(result)) {
-      Alert.alert("Thành công", "Đổi mật khẩu thành công!");
+      Toast.show({
+      type: "success",
+      text1: "Thành công",
+      text2: "Đổi mật khẩu thành công!",
+    });
       setShowPasswordModal(false);
       setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } else {
-      Alert.alert("Lỗi", error || "Đổi mật khẩu thất bại!");
+      Toast.show({
+      type: "error",
+      text1: "Lỗi",
+      text2: error || "Đổi mật khẩu thất bại!",
+    });
     }
   }, [dispatch, oldPassword, newPassword, confirmPassword, error]);
 
@@ -698,6 +737,54 @@ export default function ProfileScreen() {
             title="Đổi mật khẩu"
             subtitle="Cập nhật mật khẩu đăng nhập"
             onPress={() => setShowPasswordModal(true)}
+          />
+        </View>
+
+        {/* An toàn nội dung — bắt buộc theo chính sách UGC của Google Play */}
+        <View className="px-5 mt-8">
+          <Text className="text-base font-bold mb-4" style={{ color: C.white }}>
+            An toàn nội dung
+          </Text>
+          <MenuItem
+            icon="shield-checkmark-outline"
+            title="Quy tắc cộng đồng"
+            subtitle="Nội dung được phép đăng trong Moments"
+            onPress={() => navigation.navigate("CommunityGuidelines")}
+          />
+          {/* Google Play bắt buộc chính sách phải đọc được ngay trong app,
+              không chỉ có link ngoài Play Console. */}
+          <MenuItem
+            icon="document-text-outline"
+            title="Chính sách quyền riêng tư"
+            subtitle="Dữ liệu chúng tôi thu thập và cách bạn kiểm soát"
+            onPress={() => navigation.navigate("PrivacyPolicy")}
+          />
+          <MenuItem
+            icon="ban-outline"
+            title="Người đã chặn & bài đã ẩn"
+            subtitle="Bỏ chặn người dùng, bỏ ẩn bài viết đã ẩn"
+            onPress={() => navigation.navigate("BlockedUsers")}
+          />
+          {/* Google Play bắt buộc người dùng tự xoá được tài khoản ngay trong
+              app. Quản trị hệ thống không tự xoá được (backend trả 403) nên ẩn. */}
+          {user?.role !== "SADMIN" && (
+            <MenuItem
+              icon="trash-outline"
+              title="Xoá tài khoản"
+              subtitle="Xoá vĩnh viễn tài khoản và dữ liệu của bạn"
+              danger
+              onPress={() => navigation.navigate("DeleteAccount")}
+            />
+          )}
+          <MenuItem
+            icon="mail-outline"
+            title="Báo cáo vấn đề nội dung"
+            subtitle={MODERATION_CONTACT_EMAIL}
+            onPress={() =>
+              Linking.openURL(
+                `mailto:${MODERATION_CONTACT_EMAIL}?subject=Báo cáo vấn đề nội dung`,
+              )
+            }
           />
         </View>
       </ScrollView>

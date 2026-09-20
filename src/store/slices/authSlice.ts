@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import apiService, { setClientToken } from "../../services/apiService";
+import { getApiErrorMessage, isBadCredentials } from "../../utils/apiError";
 import imageService, { ImageFile } from "../../services/imageService";
 import storageService from "../../services/storageService";
 import { STORAGE_KEYS } from "../../constants";
@@ -46,9 +47,10 @@ export const loginUser = createAsyncThunk(
       }
       return response;
     } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Email hoặc mật khẩu không đúng",
-      );
+      if (isBadCredentials(error)) {
+        return rejectWithValue("Email hoặc mật khẩu không đúng.");
+      }
+      return rejectWithValue(getApiErrorMessage(error, "Email hoặc mật khẩu không đúng"));
     }
   },
 );
@@ -69,9 +71,7 @@ export const registerUser = createAsyncThunk(
       const response = await apiService.post("/auth/signup", userData);
       return { ...response, email: userData.email };
     } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Đăng ký thất bại. Vui lòng thử lại.",
-      );
+      return rejectWithValue(getApiErrorMessage(error, "Đăng ký thất bại. Vui lòng thử lại."));
     }
   },
 );
@@ -87,9 +87,7 @@ export const verifyEmail = createAsyncThunk(
       const response = await apiService.post("/auth/verify", data);
       return response;
     } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Mã xác thực không đúng",
-      );
+      return rejectWithValue(getApiErrorMessage(error, "Mã xác thực không đúng"));
     }
   },
 );
@@ -104,9 +102,7 @@ export const forgotPassword = createAsyncThunk(
       });
       return { ...response, email };
     } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Email không tồn tại trong hệ thống",
-      );
+      return rejectWithValue(getApiErrorMessage(error, "Email không tồn tại trong hệ thống"));
     }
   },
 );
@@ -127,9 +123,7 @@ export const resetPassword = createAsyncThunk(
       const response = await apiService.post("/users/reset-password", data);
       return response;
     } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Không thể đặt lại mật khẩu",
-      );
+      return rejectWithValue(getApiErrorMessage(error, "Không thể đặt lại mật khẩu"));
     }
   },
 );
@@ -155,9 +149,7 @@ export const updateUserProfile = createAsyncThunk(
       const response: any = await apiService.put("/users/me", userData);
       return response;
     } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Cập nhật thất bại",
-      );
+      return rejectWithValue(getApiErrorMessage(error, "Cập nhật thất bại"));
     }
   },
 );
@@ -173,9 +165,7 @@ export const changePassword = createAsyncThunk(
       const response = await apiService.post("/users/me/change-password", data);
       return response;
     } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.message || "Đổi mật khẩu thất bại",
-      );
+      return rejectWithValue(getApiErrorMessage(error, "Đổi mật khẩu thất bại"));
     }
   },
 );

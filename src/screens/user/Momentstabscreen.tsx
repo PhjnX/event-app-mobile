@@ -12,9 +12,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import AppHeader from "../../components/common/Appheader";
+import SectionHeader from "../../components/common/SectionHeader";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAppDispatch, useAppSelector } from "../../hooks/useRedux";
 import { fetchMyRegistrations } from "../../store/slices/eventSlice";
+import { TicketCardSkeleton } from "../../components/common/Skeleton";
+import { COLORS } from "../../constants/theme";
+import { anhNguon } from "../../utils/image";
 
 const TAB_BAR_HEIGHT = 80;
 
@@ -51,7 +56,7 @@ const getTicketMeta = (
         : isOngoing
           ? "Đang diễn ra"
           : "Sắp diễn ra",
-      statusColor: isExpired ? "#555" : isOngoing ? "#4ade80" : "#D8C97B",
+      statusColor: isExpired ? "#555" : isOngoing ? "#4ade80" : COLORS.primary,
       statusBg: isExpired
         ? "rgba(255,255,255,0.04)"
         : isOngoing
@@ -81,13 +86,34 @@ const getTicketMeta = (
     return {
       canEnter: false,
       canPost: false,
-      isPending: true,
+      // Sự kiện đã qua mà đơn vẫn chưa được duyệt thì sẽ không bao giờ được
+      // duyệt nữa — đừng để nó nằm mãi ở "chờ duyệt" như một việc còn dang dở.
+      isPending: !isExpired,
       isExpired,
-      isHistory: false,
-      statusLabel: "Chờ duyệt",
-      statusColor: "#f59e0b",
-      statusBg: "rgba(245,158,11,0.1)",
-      statusBorder: "rgba(245,158,11,0.25)",
+      isHistory: isExpired,
+      statusLabel: isExpired ? "Quá hạn duyệt" : "Chờ duyệt",
+      statusColor: isExpired ? "#888" : "#f59e0b",
+      statusBg: isExpired
+        ? "rgba(255,255,255,0.06)"
+        : "rgba(245,158,11,0.1)",
+      statusBorder: isExpired
+        ? "rgba(255,255,255,0.15)"
+        : "rgba(245,158,11,0.25)",
+    };
+  }
+  // Vé bị huỷ (sự kiện bị huỷ, hoặc chủ vé đã xoá tài khoản) — trước đây rơi
+  // vào nhánh cuối nên hiện nhầm thành "Từ chối".
+  if (s === "CANCELLED") {
+    return {
+      canEnter: false,
+      canPost: false,
+      isPending: false,
+      isExpired,
+      isHistory: true,
+      statusLabel: "Đã huỷ",
+      statusColor: "#9ca3af",
+      statusBg: "rgba(156,163,175,0.12)",
+      statusBorder: "rgba(156,163,175,0.25)",
     };
   }
   return {
@@ -114,7 +140,7 @@ const EmptyState = ({ icon, title, subtitle, actionLabel, onAction }: any) => (
         borderColor: "rgba(216,201,123,0.2)",
       }}
     >
-      <Ionicons name={icon} size={40} color="#D8C97B" />
+      <Ionicons name={icon} size={40} color={COLORS.primary} />
     </View>
     <Text className="text-white text-xl font-extrabold mb-2 text-center">
       {title}
@@ -129,7 +155,7 @@ const EmptyState = ({ icon, title, subtitle, actionLabel, onAction }: any) => (
       <TouchableOpacity
         onPress={onAction}
         className="px-8 py-4 rounded-3xl"
-        style={{ backgroundColor: "#D8C97B" }}
+        style={{ backgroundColor: COLORS.primary }}
       >
         <Text className="font-extrabold text-sm" style={{ color: "#000" }}>
           {actionLabel}
@@ -157,11 +183,7 @@ const TicketCard = ({ item, onPress }: { item: any; onPress: () => void }) => {
       {/* Banner */}
       <View className="h-36 relative">
         <Image
-          source={{
-            uri:
-              item.eventBanner ||
-              "https://placehold.co/400x200/1a1a1a/333?text=Event",
-          }}
+          source={anhNguon(item.eventBanner)}
           className="w-full h-full"
           resizeMode="cover"
         />
@@ -184,11 +206,14 @@ const TicketCard = ({ item, onPress }: { item: any; onPress: () => void }) => {
           }}
         />
 
-        {/* Status badge */}
+        {/* Nhãn trạng thái.
+            Trước đây nền dùng meta.statusBg — một màu chỉ 10% độ đục — nên đè
+            lên ảnh sáng là chữ tan vào ảnh, không đọc nổi. Nay nền đen đặc,
+            còn màu trạng thái giữ ở viền và chữ. */}
         <View
           className="absolute top-3 right-3 flex-row items-center px-2.5 py-1 rounded-2xl"
           style={{
-            backgroundColor: meta.statusBg,
+            backgroundColor: "rgba(0,0,0,0.7)",
             borderWidth: 1,
             borderColor: meta.statusBorder,
           }}
@@ -205,20 +230,9 @@ const TicketCard = ({ item, onPress }: { item: any; onPress: () => void }) => {
           </Text>
         </View>
 
-        {meta.isPending && (
-          <View
-            className="absolute top-3 left-3 flex-row items-center px-2.5 py-1 rounded-2xl"
-            style={{ backgroundColor: "rgba(0,0,0,0.65)" }}
-          >
-            <Ionicons name="time-outline" size={10} color="#f59e0b" />
-            <Text
-              className="text-xs font-bold ml-1"
-              style={{ color: "#f59e0b" }}
-            >
-              Đang chờ duyệt
-            </Text>
-          </View>
-        )}
+        {/* Nhãn "Đang chờ duyệt" ở góc trái đã bỏ: nhãn trạng thái góc phải đã
+            nói đúng điều đó, và nút ở góc dưới nói lần thứ ba nữa — một thẻ ba
+            nhãn giống nhau chỉ làm rối mắt. */}
 
         <View className="absolute bottom-3 left-3.5 right-3.5">
           <Text
@@ -245,7 +259,7 @@ const TicketCard = ({ item, onPress }: { item: any; onPress: () => void }) => {
         {/* Left info — flex:1 minWidth:0 để text không đẩy CTA */}
         <View style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
           <View className="flex-row items-center mb-1">
-            <Ionicons name="calendar-outline" size={12} color="#D8C97B" />
+            <Ionicons name="calendar-outline" size={12} color={COLORS.primary} />
             <Text
               className="text-xs ml-1.5"
               style={{ color: "#888" }}
@@ -258,7 +272,7 @@ const TicketCard = ({ item, onPress }: { item: any; onPress: () => void }) => {
             <Ionicons
               name="location-outline"
               size={12}
-              color="#D8C97B"
+              color={COLORS.primary}
               style={{ flexShrink: 0 }}
             />
             <Text
@@ -289,30 +303,37 @@ const TicketCard = ({ item, onPress }: { item: any; onPress: () => void }) => {
               <Ionicons
                 name={meta.canPost ? "images-outline" : "eye-outline"}
                 size={14}
-                color={meta.canPost ? "#D8C97B" : "#888"}
+                color={meta.canPost ? COLORS.primary : "#888"}
               />
               <Text
                 className="text-xs font-bold ml-1.5"
-                style={{ color: meta.canPost ? "#D8C97B" : "#888" }}
+                style={{ color: meta.canPost ? COLORS.primary : "#888" }}
               >
                 {meta.canPost ? "Vào Moments" : "Xem lại"}
               </Text>
             </View>
           ) : (
+            /* Trước đây nhánh này luôn hiện "Chờ duyệt" màu cam cho mọi vé
+               không vào được — kể cả vé đã bị từ chối hay đơn đã quá hạn duyệt.
+               Nay lấy thẳng trạng thái thật của vé. */
             <View
               className="flex-row items-center px-3.5 py-2 rounded-2xl"
               style={{
-                backgroundColor: "rgba(245,158,11,0.08)",
+                backgroundColor: meta.statusBg,
                 borderWidth: 1,
-                borderColor: "rgba(245,158,11,0.2)",
+                borderColor: meta.statusBorder,
               }}
             >
-              <Ionicons name="hourglass-outline" size={14} color="#f59e0b" />
+              <Ionicons
+                name={meta.isPending ? "hourglass-outline" : "alert-circle-outline"}
+                size={14}
+                color={meta.statusColor}
+              />
               <Text
                 className="text-xs font-bold ml-1.5"
-                style={{ color: "#f59e0b" }}
+                style={{ color: meta.statusColor }}
               >
-                Chờ duyệt
+                {meta.statusLabel}
               </Text>
             </View>
           )}
@@ -323,15 +344,21 @@ const TicketCard = ({ item, onPress }: { item: any; onPress: () => void }) => {
 };
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
+type MomentTabKey = "upcoming" | "pending" | "history";
+
+const MOMENT_TABS: { key: MomentTabKey; label: string }[] = [
+  { key: "upcoming", label: "Sắp tới" },
+  { key: "pending", label: "Chờ duyệt" },
+  { key: "history", label: "Đã kết thúc" },
+];
+
 export default function MomentsTabScreen() {
   const navigation = useNavigation<any>();
   const dispatch = useAppDispatch();
   const { user, isAuthenticated } = useAppSelector((s: any) => s.auth);
   const { myRegistrations, isLoading } = useAppSelector((s: any) => s.events);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<"upcoming" | "history">(
-    "upcoming",
-  );
+  const [activeTab, setActiveTab] = useState<MomentTabKey>("upcoming");
 
   useEffect(() => {
     if (isAuthenticated) dispatch(fetchMyRegistrations());
@@ -368,7 +395,7 @@ export default function MomentsTabScreen() {
       >
         <View className="px-5 pt-4 pb-3">
           <Text className="text-white text-2xl font-extrabold">
-            Khoảnh <Text style={{ color: "#D8C97B" }}>khắc</Text>
+            Khoảnh <Text style={{ color: COLORS.primary }}>khắc</Text>
           </Text>
           <Text className="text-sm mt-0.5" style={{ color: "#555" }}>
             Chia sẻ khoảnh khắc sự kiện của bạn
@@ -397,46 +424,56 @@ export default function MomentsTabScreen() {
         style={{ backgroundColor: "#0a0a0a" }}
         edges={["top"]}
       >
-        <View className="px-5 pt-4 pb-3">
-          <Text className="text-white text-2xl font-extrabold">
-            Khoảnh <Text style={{ color: "#D8C97B" }}>khắc</Text>
-          </Text>
-          <Text className="text-sm mt-0.5" style={{ color: "#555" }}>
-            Đang tải...
-          </Text>
-        </View>
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#D8C97B" />
-        </View>
+        {/* Khung chờ giữ nguyên đầu trang và tiêu đề, chỉ phần danh sách là
+            khung xám — chuyển sang nội dung thật sẽ êm hơn màn xoay trống. */}
+        <AppHeader />
+        <SectionHeader white="Khoảnh" gold="khắc" />
+        <TicketCardSkeleton />
+        <TicketCardSkeleton />
       </SafeAreaView>
     );
   }
 
+  const daKetThuc = (r: any) =>
+    new Date() > new Date(r.eventEndDate || r.eventStartDate);
+
   const upcomingTickets = myRegistrations.filter((r: any) => {
     const s = r.status?.toUpperCase();
     if (s !== "APPROVED" && s !== "CONFIRMED") return false;
-    return new Date() <= new Date(r.eventEndDate || r.eventStartDate);
+    return !daKetThuc(r);
   });
+
+  // Chỉ những đơn còn thật sự chờ được xử lý. Đơn của sự kiện đã qua thì ban tổ
+  // chức không còn duyệt nữa, để ở đây chỉ làm người dùng tưởng còn việc treo.
+  const pendingTickets = myRegistrations.filter(
+    (r: any) => r.status?.toUpperCase() === "PENDING" && !daKetThuc(r),
+  );
 
   const historyTickets = myRegistrations.filter((r: any) => {
     const s = r.status?.toUpperCase();
-    if (s === "PENDING") return false;
-    if (s === "APPROVED" || s === "CONFIRMED")
-      return new Date() > new Date(r.eventEndDate || r.eventStartDate);
+    // Đơn chờ duyệt đã quá hạn cũng thuộc về đây, kèm nhãn "Quá hạn duyệt"
+    if (s === "PENDING") return daKetThuc(r);
+    if (s === "APPROVED" || s === "CONFIRMED") return daKetThuc(r);
     return true;
   });
-
-  const pendingTickets = myRegistrations.filter(
-    (r: any) => r.status?.toUpperCase() === "PENDING",
-  );
+  const tabCounts = {
+    upcoming: upcomingTickets.length,
+    pending: pendingTickets.length,
+    history: historyTickets.length,
+  };
   const displayList =
-    activeTab === "upcoming" ? upcomingTickets : historyTickets;
-  const sortedList = [...displayList].sort((a: any, b: any) =>
     activeTab === "upcoming"
-      ? new Date(a.eventStartDate).getTime() -
-        new Date(b.eventStartDate).getTime()
-      : new Date(b.eventStartDate).getTime() -
-        new Date(a.eventStartDate).getTime(),
+      ? upcomingTickets
+      : activeTab === "pending"
+        ? pendingTickets
+        : historyTickets;
+  // Sắp tới và chờ duyệt: gần nhất lên đầu. Đã kết thúc: mới nhất lên đầu.
+  const sortedList = [...displayList].sort((a: any, b: any) =>
+    activeTab === "history"
+      ? new Date(b.eventStartDate).getTime() -
+        new Date(a.eventStartDate).getTime()
+      : new Date(a.eventStartDate).getTime() -
+        new Date(b.eventStartDate).getTime(),
   );
 
   return (
@@ -445,129 +482,68 @@ export default function MomentsTabScreen() {
       style={{ backgroundColor: "#0a0a0a" }}
       edges={["top"]}
     >
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-5 pt-4 pb-3">
-        <View>
-          <Text className="text-white text-2xl font-extrabold">
-            Khoảnh <Text style={{ color: "#D8C97B" }}>khắc</Text>
-          </Text>
-          <Text className="text-sm mt-0.5" style={{ color: "#555" }}>
-            {myRegistrations.length > 0
-              ? `${myRegistrations.length} sự kiện đã đăng ký`
-              : "Chia sẻ khoảnh khắc sự kiện"}
-          </Text>
-        </View>
-        {user && (
-          <TouchableOpacity
-            className="w-10 h-10 rounded-full overflow-hidden"
-            style={{ borderWidth: 1.5, borderColor: "#D8C97B" }}
-            onPress={() => navigation.navigate("Profile")}
-          >
-            {user?.avatarUrl ? (
-              <Image
-                source={{ uri: user.avatarUrl }}
-                className="w-full h-full"
-              />
-            ) : (
-              <View
-                className="flex-1 items-center justify-center"
-                style={{ backgroundColor: "#1e1c0a" }}
-              >
-                <Text
-                  className="font-extrabold text-base"
-                  style={{ color: "#D8C97B" }}
-                >
-                  {user?.username?.charAt(0)?.toUpperCase() || "U"}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        )}
-      </View>
+      {/* Dùng chung AppHeader với Trang chủ, Sự kiện và Tin tức.
+          Trước đây màn này tự vẽ đầu trang riêng nên là màn user duy nhất
+          không có chuông thông báo, và avatar thì nhảy thẳng vào Hồ sơ thay vì
+          mở menu tài khoản như ba màn kia. */}
+      <AppHeader />
 
-      {/* Segment tabs */}
-      <View className="flex-row items-center justify-between px-5 mb-3">
-        <View
-          className="flex-row rounded-2xl p-0.5"
-          style={{
-            backgroundColor: "#111",
-            borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.07)",
-          }}
-        >
-          {(["upcoming", "history"] as const).map((tab) => {
-            const count =
-              tab === "upcoming"
-                ? upcomingTickets.length
-                : historyTickets.length;
-            const active = activeTab === tab;
-            return (
-              <TouchableOpacity
-                key={tab}
-                className="flex-row items-center px-3.5 py-2 rounded-2xl"
-                style={active ? { backgroundColor: "#D8C97B" } : {}}
-                onPress={() => setActiveTab(tab)}
-              >
-                <Ionicons
-                  name={
-                    tab === "upcoming" ? "calendar-outline" : "time-outline"
-                  }
-                  size={13}
-                  color={active ? "#0a0a0a" : "#555"}
-                  style={{ marginRight: 5 }}
-                />
-                <Text
-                  className="text-xs font-bold"
-                  style={{ color: active ? "#0a0a0a" : "#555" }}
-                >
-                  {tab === "upcoming" ? "Sắp diễn ra" : "Lịch sử"}
-                </Text>
-                {count > 0 && (
-                  <View
-                    className="ml-1.5 rounded-full items-center justify-center px-1"
-                    style={{
-                      minWidth: 18,
-                      height: 18,
-                      backgroundColor: active
-                        ? "rgba(0,0,0,0.2)"
-                        : "rgba(216,201,123,0.15)",
-                    }}
-                  >
-                    <Text
-                      className="text-xs font-extrabold"
-                      style={{ color: active ? "#0a0a0a" : "#D8C97B" }}
-                    >
-                      {count}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+      <SectionHeader
+        white="Khoảnh"
+        gold="khắc"
+        count={myRegistrations.length}
+      />
 
-        {pendingTickets.length > 0 && (
-          <View
-            className="flex-row items-center px-2.5 py-1.5 rounded-2xl"
-            style={{
-              backgroundColor: "rgba(245,158,11,0.1)",
-              borderWidth: 1,
-              borderColor: "rgba(245,158,11,0.25)",
-            }}
-          >
-            <Ionicons name="hourglass-outline" size={11} color="#f59e0b" />
-            <Text
-              className="text-xs font-bold ml-1"
-              style={{ color: "#f59e0b" }}
+      {/* Ba tab bằng nhau: nhãn ở trên, số đếm ở dưới.
+
+          Bản cũ xếp hai pill và một chip trong một hàng justify-between, không
+          giới hạn bề rộng — khi chật chỗ chữ bị xén, "Lịch sử" hiện ra thành
+          "Lịch" (hai nghĩa khác hẳn nhau). Chia đều flex-1 thì không bao giờ xén.
+
+          Ngoài ra "chờ duyệt" trước đây là một <View> không bấm được nhưng nằm
+          cạnh hai pill bấm được và trông y hệt, nên ai cũng tưởng bấm được mà
+          chẳng xem được gì. Nay nó là tab thật. */}
+      <View
+        className="flex-row mx-5 mb-3 rounded-2xl p-1"
+        style={{
+          backgroundColor: "#111",
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.07)",
+        }}
+      >
+        {MOMENT_TABS.map((t) => {
+          const count = tabCounts[t.key];
+          const active = activeTab === t.key;
+          return (
+            <TouchableOpacity
+              key={t.key}
+              className="flex-1 items-center py-2 rounded-xl"
+              style={active ? { backgroundColor: COLORS.primary } : {}}
+              onPress={() => setActiveTab(t.key)}
+              activeOpacity={0.8}
             >
-              {`${pendingTickets.length} chờ duyệt`}
-            </Text>
-          </View>
-        )}
+              <Text
+                numberOfLines={1}
+                className="text-xs font-bold"
+                style={{ color: active ? "#0a0a0a" : "#888" }}
+              >
+                {t.label}
+              </Text>
+              <Text
+                className="text-sm font-extrabold mt-0.5"
+                style={{
+                  color: active ? "#0a0a0a" : count > 0 ? COLORS.primary : "#444",
+                }}
+              >
+                {count}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* Hint */}
-      {activeTab === "upcoming" && sortedList.length > 0 && (
+      {activeTab !== "history" && sortedList.length > 0 && (
         <View
           className="flex-row items-center mx-5 mb-3 px-3.5 py-2.5 rounded-2xl"
           style={{
@@ -579,10 +555,12 @@ export default function MomentsTabScreen() {
           <Ionicons
             name="information-circle-outline"
             size={14}
-            color="#D8C97B"
+            color={COLORS.primary}
           />
           <Text className="text-xs flex-1 ml-2" style={{ color: "#888" }}>
-            Chọn sự kiện để xem và đăng khoảnh khắc của bạn
+            {activeTab === "upcoming"
+              ? "Chọn sự kiện để xem và đăng khoảnh khắc của bạn"
+              : "Các đơn này đang chờ ban tổ chức duyệt. Được duyệt và check-in tại sự kiện rồi bạn mới đăng khoảnh khắc được."}
           </Text>
         </View>
       )}
@@ -590,16 +568,26 @@ export default function MomentsTabScreen() {
       {/* List */}
       {sortedList.length === 0 ? (
         <EmptyState
-          icon={activeTab === "upcoming" ? "calendar-outline" : "time-outline"}
+          icon={
+            activeTab === "upcoming"
+              ? "calendar-outline"
+              : activeTab === "pending"
+                ? "hourglass-outline"
+                : "time-outline"
+          }
           title={
             activeTab === "upcoming"
-              ? "Không có sự kiện sắp tới"
-              : "Chưa có lịch sử"
+              ? "Chưa có sự kiện nào để đăng"
+              : activeTab === "pending"
+                ? "Không có đơn nào chờ duyệt"
+                : "Chưa có sự kiện đã kết thúc"
           }
           subtitle={
             activeTab === "upcoming"
-              ? "Bạn chưa có vé nào được duyệt cho sự kiện sắp diễn ra."
-              : "Các sự kiện đã kết thúc hoặc đã check-in sẽ hiển thị ở đây."
+              ? "Khoảnh khắc chỉ đăng được ở sự kiện bạn đã đăng ký, được ban tổ chức duyệt và đã check-in tại chỗ."
+              : activeTab === "pending"
+                ? "Mọi đơn đăng ký của bạn đều đã được xử lý."
+                : "Sự kiện đã diễn ra xong sẽ được lưu lại ở đây."
           }
           actionLabel={
             activeTab === "upcoming" ? "Khám phá sự kiện" : undefined
@@ -626,7 +614,7 @@ export default function MomentsTabScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#D8C97B"
+              tintColor={COLORS.primary}
             />
           }
         />

@@ -9,12 +9,13 @@ import {
   Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { COLORS } from "../../constants/theme";
 import { useNavigation } from "@react-navigation/native"; // Thêm navigation
 import { useAppSelector } from "../../hooks/useRedux"; // Thêm Redux
 
 const LOGO = require("../../../assets/Logo_EMS.webp");
 
-const GOLD = "#D8C97B";
+const GOLD = COLORS.primary;
 const BG = "#060606";
 const CARD = "#0F0F0F";
 const BORDER = "rgba(255,255,255,0.07)";

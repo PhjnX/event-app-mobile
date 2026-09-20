@@ -19,6 +19,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import QRCode from "react-native-qrcode-svg";
 import { useAppDispatch, useAppSelector } from "../../hooks/useRedux";
+import { COLORS } from "../../constants/theme";
 import {
   fetchEventActivities,
   fetchOrganizerRegistrations,
@@ -26,8 +27,9 @@ import {
   Activity,
   OrganizerEvent,
 } from "../../store/slices/organizerSlice";
+import { laHetCho, laKhongGioiHan } from "../../utils/capacity";
 
-const GOLD = "#D8C97B";
+const GOLD = COLORS.primary;
 const GOLD2 = "#B5A65F";
 const BG = "#060606";
 const CARD = "#0F0F0F";
@@ -177,9 +179,12 @@ function ActivityCard({
       } as any
     )[activity.activityStatus || "ACTIVE"] || "Hoạt động";
 
+  // Backend chưa trả số lượt đã đăng ký của từng hoạt động, nên chưa xác định
+  // được "đã đầy". Khi nào DTO có trường đếm thì bật lại phép kiểm này.
   const isFull =
-    activity.capacity != null &&
-    (activity.currentRegistrations ?? 0) >= activity.capacity;
+    activity.maxAttendees != null &&
+    activity.currentRegistrations != null &&
+    laHetCho(activity.maxAttendees, activity.currentRegistrations);
 
   // Đã sửa lại thứ tự ưu tiên lấy URL ảnh: activityImageUrl (chuẩn nhất) -> imageUrl -> bannerImageUrl
   const imgUrl =
@@ -247,7 +252,7 @@ function ActivityCard({
               </Text>
             </View>
           )}
-          {activity.capacity && (
+          {activity.maxAttendees != null && (
             <View style={ac.metaRow}>
               <Ionicons name="people-outline" size={15} color="#888" />
               <Text
@@ -256,7 +261,11 @@ function ActivityCard({
                   isFull && { color: RED, fontWeight: "700" },
                 ]}
               >
-                {activity.currentRegistrations ?? 0} / {activity.capacity} vé
+                {laKhongGioiHan(activity.maxAttendees)
+                  ? "Không giới hạn chỗ"
+                  : activity.currentRegistrations != null
+                    ? `${activity.currentRegistrations} / ${activity.maxAttendees} vé`
+                    : `Sức chứa ${activity.maxAttendees} vé`}
               </Text>
               {isFull && (
                 <View style={ac.fullChip}>

@@ -33,9 +33,10 @@ import {
 import { fetchMyOrganizerStatus } from "../../store/slices/organizerSlice";
 import { logoutUser } from "../../store/slices/authSlice";
 import { AppHeader } from "./AppHeader";
+import { COLORS } from "../../constants/theme";
 
 // ─── Colors ──────────────────────────────────────────────────────────────────
-const GOLD = "#D8C97B";
+const GOLD = COLORS.primary;
 const GOLD2 = "#B5A65F";
 const BG = "#060606";
 const CARD = "#101010";

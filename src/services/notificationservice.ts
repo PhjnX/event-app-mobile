@@ -1,4 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { COLORS } from "../constants/theme";
+import { parseServerDate } from "../utils/datetime";
 
 const STORAGE_KEY = "app_local_notifications";
 
@@ -35,7 +37,7 @@ export const NOTIF_META: Record<
   },
   TICKET_APPROVED: {
     icon: "ticket",
-    color: "#D8C97B",
+    color: COLORS.primary,
     bg: "rgba(216,201,123,0.1)",
   },
   TICKET_REJECTED: {
@@ -134,7 +136,7 @@ export async function getUnreadCount(): Promise<number> {
 
 // ── Format thời gian tương đối ────────────────────────────────────────────────
 export function timeAgo(isoString: string): string {
-  const diff = Date.now() - new Date(isoString).getTime();
+  const diff = Date.now() - parseServerDate(isoString).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return "Vừa xong";
   if (mins < 60) return `${mins} phút trước`;
@@ -142,7 +144,7 @@ export function timeAgo(isoString: string): string {
   if (hours < 24) return `${hours} giờ trước`;
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days} ngày trước`;
-  return new Date(isoString).toLocaleDateString("vi-VN");
+  return parseServerDate(isoString).toLocaleDateString("vi-VN");
 }
 
 // ── Helpers để gọi nhanh từ các màn hình ─────────────────────────────────────

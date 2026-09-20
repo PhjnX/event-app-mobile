@@ -17,14 +17,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import * as Location from "expo-location";
 import { useAppDispatch, useAppSelector } from "../../hooks/useRedux";
+import { COLORS } from "../../constants/theme";
 import {
   checkInByQR,
   clearCheckInResult,
 } from "../../store/slices/organizerSlice";
 
-const GOLD = "#D8C97B";
+const GOLD = COLORS.primary;
 const GOLD2 = "#B5A65F";
 const BG = "#000";
 const GREEN = "#22c55e";
@@ -190,27 +190,14 @@ export default function OrganizerQRScannerScreen() {
     if (checkInResult || checkInError) setShowResult(true);
   }, [checkInResult, checkInError]);
 
-  const handleScan = async ({ data: ticketCode }: { data: string }) => {
+  const handleScan = ({ data: ticketCode }: { data: string }) => {
     if (scanned || isCheckInLoading) return;
     setScanned(true);
 
-    // Get location for check-in
-    let lat = 0,
-      lng = 0;
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === "granted") {
-        const loc = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        lat = loc.coords.latitude;
-        lng = loc.coords.longitude;
-      }
-    } catch {}
-
-    // Gate check-in: only ticketCode + location needed
-    // activityQrCode is NOT used here — activity check-in is handled by user scanning organizer's QR
-    dispatch(checkInByQR({ ticketCode, latitude: lat, longitude: lng } as any));
+    // Check-in tại cổng chỉ cần ticketCode. Backend không xác thực vị trí, nên
+    // app không xin quyền GPS nữa — xin một quyền nhạy cảm mà không dùng tới
+    // chỉ làm khó khi khai Data safety lúc nộp lên Google Play.
+    dispatch(checkInByQR(ticketCode));
   };
 
   const handleScanAgain = () => {

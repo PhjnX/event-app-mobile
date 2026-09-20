@@ -3,6 +3,8 @@ import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS, FONTS } from "../../constants/theme";
 import type { Registration } from "../../models/event";
+import { formatEventDateChip } from "../../utils/date";
+import { anhNguon } from "../../utils/image";
 
 interface TicketCardProps {
   ticket: Registration;
@@ -13,8 +15,7 @@ interface TicketCardProps {
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
   return {
-    day: date.getDate().toString().padStart(2, "0"),
-    month: date.toLocaleString("vi-VN", { month: "short" }).toUpperCase(),
+    ...formatEventDateChip(dateString),
     time: date.toLocaleTimeString("vi-VN", {
       hour: "2-digit",
       minute: "2-digit",
@@ -71,11 +72,7 @@ export default function TicketCard({
     >
       {/* Background Image */}
       <Image
-        source={{
-          uri:
-            ticket.eventBanner ||
-            "https://placehold.co/400x200/1a1a1a/666666?text=Event",
-        }}
+        source={anhNguon(ticket.eventBanner)}
         style={styles.backgroundImage}
         resizeMode="cover"
       />

@@ -21,13 +21,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useAppDispatch, useAppSelector } from "../../hooks/useRedux";
+import { parseServerDate } from "../../utils/datetime";
+import { COLORS } from "../../constants/theme";
 import {
   fetchOrganizerRegistrations,
   Registration,
 } from "../../store/slices/organizerSlice";
+import { tenNguoiDung, emailNguoiDung } from "../../utils/deletedUser";
 
 // ─── Design tokens ───────────────────────────────────────────
-const GOLD = "#D8C97B";
+const GOLD = COLORS.primary;
 const GOLD2 = "#B5A65F";
 const BG = "#0A0A0C";
 const SURFACE = "#111115";
@@ -236,7 +239,7 @@ function DetailSheet({
             ) : (
               <View style={[bs.avatar, bs.avatarFallback]}>
                 <Text style={bs.avatarInitial}>
-                  {(item.username || "?")[0].toUpperCase()}
+                  {tenNguoiDung(item)[0].toUpperCase()}
                 </Text>
               </View>
             )}
@@ -249,10 +252,10 @@ function DetailSheet({
 
           <View style={{ flex: 1, gap: 4 }}>
             <Text style={bs.name} numberOfLines={1}>
-              {item.username || "Người dùng"}
+              {tenNguoiDung(item)}
             </Text>
             <Text style={bs.email} numberOfLines={1}>
-              {item.email}
+              {emailNguoiDung(item)}
             </Text>
             <View
               style={[
@@ -296,7 +299,7 @@ function DetailSheet({
               <DetailRow
                 icon="calendar-outline"
                 label="Ngày đăng ký"
-                value={new Date(item.registrationDate).toLocaleDateString(
+                value={parseServerDate(item.registrationDate).toLocaleDateString(
                   "vi-VN",
                   {
                     weekday: "long",
@@ -328,12 +331,12 @@ function DetailSheet({
             <DetailRow
               icon="person-outline"
               label="Tên"
-              value={item.username || "Chưa cập nhật"}
+              value={tenNguoiDung(item, "Chưa cập nhật")}
             />
             <DetailRow
               icon="mail-outline"
               label="Email"
-              value={item.email || "Chưa cập nhật"}
+              value={emailNguoiDung(item, "Chưa cập nhật")}
             />
             {(item as any).phoneNumber && (
               <DetailRow
@@ -496,7 +499,7 @@ function RegRow({
         ) : (
           <View style={[rr.avatar, rr.avatarFallback]}>
             <Text style={rr.avatarInitial}>
-              {(item.username || "?")[0].toUpperCase()}
+              {tenNguoiDung(item)[0].toUpperCase()}
             </Text>
           </View>
         )}
@@ -509,7 +512,7 @@ function RegRow({
 
       <View style={rr.info}>
         <Text style={rr.name} numberOfLines={1}>
-          {item.username || "Người dùng"}
+          {tenNguoiDung(item)}
         </Text>
         <Text style={rr.email} numberOfLines={1}>
           {item.email}
@@ -529,7 +532,7 @@ function RegRow({
           )}
           {item.registrationDate && (
             <Text style={rr.date}>
-              {new Date(item.registrationDate).toLocaleDateString("vi-VN")}
+              {parseServerDate(item.registrationDate).toLocaleDateString("vi-VN")}
             </Text>
           )}
         </View>

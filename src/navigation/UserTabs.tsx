@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
   View,
   TouchableOpacity,
@@ -17,6 +17,7 @@ import HomeScreen from "../screens/user/HomeScreen";
 import EventsScreen from "../screens/user/EventsScreen";
 import MomentsTabScreen from "../screens/user/Momentstabscreen";
 import NewsScreen from "../screens/user/NewsScreen";
+import { COLORS } from "../constants/theme";
 
 import { TabBarProvider, useTabBar } from "../context/TabBarContext"; // ← adjust path
 
@@ -30,6 +31,105 @@ export type UserTabParamList = {
 const Tab = createBottomTabNavigator<UserTabParamList>();
 
 /* ─── Custom Tab Bar ─── */
+/**
+ * Nút tab có phản hồi chạm.
+ *
+ * Chuyển tab vẫn tức thì — không chờ hiệu ứng nào, không có khung hình trống.
+ * Cảm giác mượt đến từ chính cái nút: nhún xuống khi ngón tay chạm, nảy về khi
+ * thả, và chấm chỉ báo bung ra ở tab vừa chọn. Toàn bộ chạy bằng transform và
+ * opacity với useNativeDriver nên nằm trên luồng UI, không bị JS làm giật.
+ *
+ * Màu icon vẫn đổi tức thì (màu không chạy được trên luồng native) — và như vậy
+ * lại đúng: màu đổi ngay khẳng định thao tác đã được ghi nhận.
+ */
+function TabButton({
+  icon,
+  iconFocused,
+  label,
+  isFocused,
+  onPress,
+  accessibilityLabel,
+}: {
+  icon: string;
+  iconFocused: string;
+  label: string;
+  isFocused: boolean;
+  onPress: () => void;
+  accessibilityLabel?: string;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const dot = useRef(new Animated.Value(isFocused ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.spring(dot, {
+      toValue: isFocused ? 1 : 0,
+      useNativeDriver: true,
+      speed: 20,
+      bounciness: 10,
+    }).start();
+
+    if (isFocused) {
+      scale.setValue(0.86);
+      Animated.spring(scale, {
+        toValue: 1,
+        useNativeDriver: true,
+        speed: 16,
+        bounciness: 12,
+      }).start();
+    }
+  }, [isFocused, dot, scale]);
+
+  const nhanXuong = () =>
+    Animated.spring(scale, {
+      toValue: 0.9,
+      useNativeDriver: true,
+      speed: 40,
+      bounciness: 0,
+    }).start();
+
+  const thaRa = () =>
+    Animated.spring(scale, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 16,
+      bounciness: 12,
+    }).start();
+
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityState={isFocused ? { selected: true } : {}}
+      accessibilityLabel={accessibilityLabel}
+      onPress={onPress}
+      onPressIn={nhanXuong}
+      onPressOut={thaRa}
+      style={ss.tabBtn}
+      activeOpacity={1}
+    >
+      <Animated.View
+        style={{ alignItems: "center", transform: [{ scale }] }}
+      >
+        <Ionicons
+          name={(isFocused ? iconFocused : icon) as any}
+          size={22}
+          color={isFocused ? COLORS.primary : "#444"}
+        />
+        <Text
+          style={[
+            ss.label,
+            { color: isFocused ? COLORS.primary : "#444", marginTop: 3 },
+          ]}
+        >
+          {label}
+        </Text>
+        <Animated.View
+          style={[ss.activeDot, { opacity: dot, transform: [{ scale: dot }] }]}
+        />
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
+
 function CustomTabBar({ state, descriptors, navigation: tabNav }: any) {
   const rootNav = useNavigation<any>();
   const insets = useSafeAreaInsets();
@@ -120,30 +220,15 @@ function CustomTabBar({ state, descriptors, navigation: tabNav }: any) {
           };
 
           return (
-            <TouchableOpacity
+            <TabButton
               key={slotIdx}
-              accessibilityRole="button"
-              accessibilityState={isFocused ? { selected: true } : {}}
-              accessibilityLabel={options.tabBarAccessibilityLabel}
+              icon={slot.icon as string}
+              iconFocused={slot.iconFocused as string}
+              label={slot.label as string}
+              isFocused={isFocused}
               onPress={onPress}
-              style={ss.tabBtn}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={(isFocused ? slot.iconFocused : slot.icon) as any}
-                size={22}
-                color={isFocused ? "#D8C97B" : "#444"}
-              />
-              <Text
-                style={[
-                  ss.label,
-                  { color: isFocused ? "#D8C97B" : "#444", marginTop: 3 },
-                ]}
-              >
-                {slot.label}
-              </Text>
-              {isFocused && <View style={ss.activeDot} />}
-            </TouchableOpacity>
+              accessibilityLabel={options.tabBarAccessibilityLabel}
+            />
           );
         })}
       </View>
@@ -156,7 +241,14 @@ function UserTabsInner() {
   return (
     <Tab.Navigator
       tabBar={(props) => <CustomTabBar {...props} />}
-      screenOptions={{ headerShown: false }}
+      screenOptions={{
+        headerShown: false,
+        // Đã thử animation: "fade" cho thanh tab và bị chớp màn hình: màn cũ mờ
+        // đi trong khi màn mới chưa kịp vẽ, lộ nền đen một khung hình. Bottom
+        // tabs mặc định tháo màn không hoạt động khỏi cây nên crossfade không
+        // có gì để hoà vào. Giữ chuyển tab tức thì; hiệu ứng để dành cho
+        // chuyển màn trong stack, nơi nó chạy đúng.
+      }}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Events" component={EventsScreen} />
@@ -214,7 +306,7 @@ const ss = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#D8C97B",
+    backgroundColor: COLORS.primary,
   },
   centerSlot: {
     flex: 1,
@@ -226,10 +318,10 @@ const ss = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: "#D8C97B",
+    backgroundColor: COLORS.primary,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#D8C97B",
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.55,
     shadowRadius: 12,

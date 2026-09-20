@@ -16,6 +16,8 @@ import { useNavigation } from "@react-navigation/native";
 // Nhớ kiểm tra lại đường dẫn import hooks của bạn
 import { useAppDispatch, useAppSelector } from "../../hooks/useRedux";
 import { fetchMyRegistrations } from "../../store/slices/eventSlice";
+import { COLORS } from "../../constants/theme";
+import { anhNguon } from "../../utils/image";
 
 const { width } = Dimensions.get("window");
 
@@ -48,6 +50,9 @@ const getStatusColor = (status: string) => {
       return "#f59e0b"; // warning
     case "REJECTED":
       return "#ef4444"; // error
+    // Vé bị huỷ: sự kiện bị huỷ, hoặc chủ vé đã xoá tài khoản
+    case "CANCELLED":
+      return "#9ca3af";
     default:
       return "#666666"; // muted
   }
@@ -62,6 +67,8 @@ const getStatusLabel = (status: string) => {
       return "Đang chờ";
     case "REJECTED":
       return "Từ chối";
+    case "CANCELLED":
+      return "Đã huỷ";
     default:
       return status;
   }
@@ -145,11 +152,7 @@ export default function MyTicketsScreen() {
       >
         {/* Background Image & Overlay */}
         <Image
-          source={{
-            uri:
-              item.eventBanner ||
-              "https://placehold.co/400x200/1a1a1a/666666?text=Event",
-          }}
+          source={anhNguon(item.eventBanner)}
           className="absolute inset-0 w-full h-full opacity-30"
         />
         <View className="absolute inset-0 bg-black/70" />
@@ -188,12 +191,12 @@ export default function MyTicketsScreen() {
 
           {/* Info */}
           <View className="flex-row items-center mb-4">
-            <Ionicons name="time-outline" size={14} color="#D8C97B" />
+            <Ionicons name="time-outline" size={14} color={COLORS.primary} />
             <Text className="text-[#a0a0a0] text-xs ml-1">{dateInfo.time}</Text>
             <Ionicons
               name="location-outline"
               size={14}
-              color="#D8C97B"
+              color={COLORS.primary}
               style={{ marginLeft: 12 }}
             />
             <Text
@@ -230,7 +233,7 @@ export default function MyTicketsScreen() {
                   setShowQRModal(true);
                 }}
               >
-                <Ionicons name="qr-code-outline" size={20} color="#D8C97B" />
+                <Ionicons name="qr-code-outline" size={20} color={COLORS.primary} />
               </TouchableOpacity>
             )}
           </View>
@@ -307,7 +310,7 @@ export default function MyTicketsScreen() {
           <Ionicons
             name="lock-closed-outline"
             size={80}
-            color="#D8C97B"
+            color={COLORS.primary}
             className="opacity-50"
           />
           <Text className="text-white text-[22px] font-bold mt-6 mb-3">
@@ -393,7 +396,7 @@ export default function MyTicketsScreen() {
       {/* Tickets List */}
       {isLoading && myRegistrations.length === 0 ? (
         <View className="flex-1 justify-center items-center">
-          <ActivityIndicator size="large" color="#D8C97B" />
+          <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
       ) : (
         <FlatList
@@ -406,7 +409,7 @@ export default function MyTicketsScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#D8C97B"
+              tintColor={COLORS.primary}
             />
           }
           ListEmptyComponent={

@@ -28,7 +28,11 @@ import Toast from "react-native-toast-message";
 import { useAppSelector } from "../../hooks/useRedux";
 import apiService from "../../services/apiService";
 import AppHeader from "../../components/common/Appheader";
+import SectionHeader from "../../components/common/SectionHeader";
+import { EventListSkeleton } from "../../components/common/Skeleton";
 import { useTabBar } from "../../context/TabBarContext";
+import { COLORS } from "../../constants/theme";
+import { anhNguon } from "../../utils/image";
 
 const DROPDOWN_MAX = 5;
 
@@ -80,9 +84,9 @@ const FilterTabs = ({
             paddingHorizontal: 20,
             paddingVertical: 9,
             borderRadius: 100,
-            backgroundColor: on ? "#D8C97B" : "#161616",
+            backgroundColor: on ? COLORS.primary : "#161616",
             borderWidth: 1,
-            borderColor: on ? "#D8C97B" : "#252525",
+            borderColor: on ? COLORS.primary : "#252525",
           }}
         >
           <Text
@@ -101,60 +105,6 @@ const FilterTabs = ({
 );
 
 // ─── Section Header ───────────────────────────────────────────────────────────
-const SectionHeader = ({
-  white,
-  gold,
-  count,
-}: {
-  white: string;
-  gold: string;
-  count?: number;
-}) => (
-  <View style={{ paddingHorizontal: 20, marginBottom: 16, marginTop: 8 }}>
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "flex-end",
-        justifyContent: "space-between",
-      }}
-    >
-      <Text
-        style={{
-          color: "#fff",
-          fontSize: 26,
-          fontWeight: "900",
-          letterSpacing: -0.8,
-        }}
-      >
-        {white} <Text style={{ color: "#D8C97B" }}>{gold}</Text>
-      </Text>
-      {count !== undefined && (
-        <View
-          style={{
-            backgroundColor: "rgba(216,201,123,0.1)",
-            borderWidth: 1,
-            borderColor: "rgba(216,201,123,0.2)",
-            borderRadius: 100,
-            paddingHorizontal: 12,
-            paddingVertical: 4,
-            marginBottom: 3,
-          }}
-        >
-          <Text style={{ color: "#D8C97B", fontSize: 12, fontWeight: "700" }}>
-            {count}
-          </Text>
-        </View>
-      )}
-    </View>
-    <View
-      style={{
-        height: 1,
-        backgroundColor: "rgba(255,255,255,0.06)",
-        marginTop: 10,
-      }}
-    />
-  </View>
-);
 
 // ─── Activity row in expanded card ───────────────────────────────────────────
 const ActivityRow = ({ act }: { act: any }) => (
@@ -180,7 +130,7 @@ const ActivityRow = ({ act }: { act: any }) => (
         }}
       >
         <Image
-          source={{ uri: act.activityImageUrl }}
+          source={anhNguon(act.activityImageUrl)}
           style={{ width: "100%", height: "100%" }}
           resizeMode="cover"
         />
@@ -199,7 +149,7 @@ const ActivityRow = ({ act }: { act: any }) => (
           flexShrink: 0,
         }}
       >
-        <Ionicons name="mic-outline" size={18} color="#D8C97B" />
+        <Ionicons name="mic-outline" size={18} color={COLORS.primary} />
       </View>
     )}
     <View style={{ flex: 1 }}>
@@ -228,7 +178,7 @@ const ActivityRow = ({ act }: { act: any }) => (
         )}
         {act.presenter && (
           <Text
-            style={{ color: "#D8C97B", fontSize: 11, fontWeight: "600" }}
+            style={{ color: COLORS.primary, fontSize: 11, fontWeight: "600" }}
             numberOfLines={1}
           >
             {act.presenter.fullName}
@@ -254,7 +204,6 @@ const EventCard = ({
   const expandAnim = useRef(new Animated.Value(isExpanded ? 1 : 0)).current;
   const [activities, setActivities] = useState<any[]>([]);
   const [loadingActs, setLoadingActs] = useState(false);
-
   useEffect(() => {
     Animated.spring(expandAnim, {
       toValue: isExpanded ? 1 : 0,
@@ -262,7 +211,6 @@ const EventCard = ({
       friction: 14,
       useNativeDriver: false,
     }).start();
-
     if (isExpanded && activities.length === 0 && item.eventId) {
       setLoadingActs(true);
       apiService
@@ -284,12 +232,10 @@ const EventCard = ({
         .finally(() => setLoadingActs(false));
     }
   }, [isExpanded]);
-
   const expandOpacity = expandAnim.interpolate({
     inputRange: [0, 0.6, 1],
     outputRange: [0, 0, 1],
   });
-
   return (
     <View
       style={{
@@ -304,8 +250,9 @@ const EventCard = ({
           : "rgba(255,255,255,0.06)",
       }}
     >
-      {isExpanded && <View style={{ height: 2, backgroundColor: "#D8C97B" }} />}
-
+      {isExpanded && (
+        <View style={{ height: 2, backgroundColor: COLORS.primary }} />
+      )}
       <TouchableOpacity
         onPress={onToggle}
         activeOpacity={0.82}
@@ -321,9 +268,7 @@ const EventCard = ({
           }}
         >
           <Image
-            source={{
-              uri: item.bannerImageUrl || "https://placehold.co/200x200",
-            }}
+            source={anhNguon(item.bannerImageUrl)}
             style={{ width: "100%", height: "100%" }}
             resizeMode="cover"
           />
@@ -338,7 +283,6 @@ const EventCard = ({
             }}
           />
         </View>
-
         <View style={{ flex: 1, justifyContent: "space-between" }}>
           <View
             style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}
@@ -374,7 +318,7 @@ const EventCard = ({
               <Ionicons
                 name={isExpanded ? "chevron-up" : "chevron-down"}
                 size={13}
-                color={isExpanded ? "#D8C97B" : "#555"}
+                color={isExpanded ? COLORS.primary : "#555"}
               />
             </View>
           </View>
@@ -405,9 +349,17 @@ const EventCard = ({
                 alignSelf: "flex-start",
               }}
             >
-              <Ionicons name="calendar-outline" size={11} color="#D8C97B" />
+              <Ionicons
+                name="calendar-outline"
+                size={11}
+                color={COLORS.primary}
+              />
               <Text
-                style={{ color: "#D8C97B", fontSize: 12, fontWeight: "700" }}
+                style={{
+                  color: COLORS.primary,
+                  fontSize: 12,
+                  fontWeight: "700",
+                }}
               >
                 {formatDate(item.startDate)}
               </Text>
@@ -415,7 +367,6 @@ const EventCard = ({
           </View>
         </View>
       </TouchableOpacity>
-
       {isExpanded && (
         <Animated.View style={{ opacity: expandOpacity }}>
           <View
@@ -443,7 +394,7 @@ const EventCard = ({
 
             {loadingActs ? (
               <View style={{ alignItems: "center", paddingVertical: 14 }}>
-                <ActivityIndicator size="small" color="#D8C97B" />
+                <ActivityIndicator size="small" color={COLORS.primary} />
               </View>
             ) : activities.length > 0 ? (
               <View style={{ marginBottom: 12 }}>
@@ -460,12 +411,12 @@ const EventCard = ({
                       width: 3,
                       height: 12,
                       borderRadius: 2,
-                      backgroundColor: "#D8C97B",
+                      backgroundColor: COLORS.primary,
                     }}
                   />
                   <Text
                     style={{
-                      color: "#D8C97B",
+                      color: COLORS.primary,
                       fontSize: 10,
                       fontWeight: "800",
                       letterSpacing: 1.5,
@@ -485,7 +436,7 @@ const EventCard = ({
               onPress={onNavigate}
               activeOpacity={0.85}
               style={{
-                backgroundColor: "#D8C97B",
+                backgroundColor: COLORS.primary,
                 borderRadius: 14,
                 paddingVertical: 13,
                 flexDirection: "row",
@@ -522,7 +473,7 @@ const PresenterCard = ({ presenter }: { presenter: any }) => (
       }}
     >
       <Image
-        source={{ uri: presenter.avatarUrl || "https://placehold.co/100" }}
+        source={anhNguon(presenter.avatarUrl)}
         style={{ width: "100%", height: "100%" }}
         resizeMode="cover"
       />
@@ -543,7 +494,7 @@ const PresenterCard = ({ presenter }: { presenter: any }) => (
     {presenter.title && (
       <Text
         style={{
-          color: "#D8C97B",
+          color: COLORS.primary,
           fontSize: 10,
           marginTop: 2,
           textAlign: "center",
@@ -583,7 +534,7 @@ const DropdownItem = ({
       }}
     >
       <Image
-        source={{ uri: item.bannerImageUrl || "https://placehold.co/80" }}
+        source={anhNguon(item.bannerImageUrl)}
         style={{
           width: 44,
           height: 44,
@@ -600,7 +551,7 @@ const DropdownItem = ({
           {idx >= 0 ? (
             <>
               {name.slice(0, idx)}
-              <Text style={{ color: "#D8C97B", fontWeight: "800" }}>
+              <Text style={{ color: COLORS.primary, fontWeight: "800" }}>
                 {name.slice(idx, idx + query.length)}
               </Text>
               {name.slice(idx + query.length)}
@@ -688,7 +639,7 @@ const HeroSearch = React.memo(
             <Ionicons
               name="search"
               size={19}
-              color={searchFocused ? "#D8C97B" : "#555"}
+              color={searchFocused ? COLORS.primary : "#555"}
               style={{ marginRight: 10 }}
             />
             <TextInput
@@ -798,14 +749,18 @@ const HeroSearch = React.memo(
                   >
                     <Text
                       style={{
-                        color: "#D8C97B",
+                        color: COLORS.primary,
                         fontSize: 13,
                         fontWeight: "700",
                       }}
                     >
                       Xem tất cả {dropdownResults.length} kết quả
                     </Text>
-                    <Ionicons name="chevron-down" size={13} color="#D8C97B" />
+                    <Ionicons
+                      name="chevron-down"
+                      size={13}
+                      color={COLORS.primary}
+                    />
                   </TouchableOpacity>
                 )}
               </>
@@ -1042,7 +997,8 @@ export default function EventsScreen() {
             }}
           >
             <Text style={{ color: "#fff", fontSize: 20, fontWeight: "900" }}>
-              Kết quả <Text style={{ color: "#D8C97B" }}>"{searchTerm}"</Text>
+              Kết quả
+              <Text style={{ color: COLORS.primary }}>"{searchTerm}"</Text>
             </Text>
             <TouchableOpacity onPress={handleClearSearch}>
               <Text style={{ color: "#555", fontSize: 13 }}>Xoá</Text>
@@ -1145,7 +1101,7 @@ export default function EventsScreen() {
                     borderColor: "rgba(216,201,123,0.2)",
                   }}
                 >
-                  <Ionicons name="mail" size={22} color="#D8C97B" />
+                  <Ionicons name="mail" size={22} color={COLORS.primary} />
                 </View>
                 <Text
                   style={{
@@ -1203,7 +1159,7 @@ export default function EventsScreen() {
                     onPress={handleSubscribe}
                     disabled={subscribing}
                     style={{
-                      backgroundColor: "#D8C97B",
+                      backgroundColor: COLORS.primary,
                       borderRadius: 12,
                       height: 42,
                       paddingHorizontal: 18,
@@ -1276,37 +1232,17 @@ export default function EventsScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#0a0a0a" }}>
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: "#0a0a0a" }}
+        edges={["top"]}
+      >
         <StatusBar barStyle="light-content" />
-        <View
-          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-        >
-          <View
-            style={{
-              width: 68,
-              height: 68,
-              borderRadius: 34,
-              backgroundColor: "#141414",
-              borderWidth: 1,
-              borderColor: "rgba(216,201,123,0.15)",
-              justifyContent: "center",
-              alignItems: "center",
-              marginBottom: 16,
-            }}
-          >
-            <ActivityIndicator size="large" color="#D8C97B" />
-          </View>
-          <Text
-            style={{
-              color: "#555",
-              fontSize: 11,
-              letterSpacing: 3,
-              fontWeight: "700",
-            }}
-          >
-            ĐANG TẢI...
-          </Text>
-        </View>
+        {/* Khung chờ thay cho vòng xoay giữa màn đen.
+            Giữ nguyên đầu trang và dựng sẵn hình hài danh sách, để khi dữ liệu
+            về thì nội dung điền vào chỗ trống chứ không ập ra từ màn trắng. */}
+        <AppHeader />
+        <SectionHeader white="Tất cả" gold="sự kiện" />
+        <EventListSkeleton count={5} />
       </SafeAreaView>
     );
   }
@@ -1391,7 +1327,7 @@ export default function EventsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#D8C97B"
+            tintColor={COLORS.primary}
           />
         }
       />

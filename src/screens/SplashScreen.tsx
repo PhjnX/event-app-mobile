@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { View, Image, Animated, StyleSheet, Easing } from "react-native";
+import { COLORS } from "../constants/theme";
 
 const logo = require("../../assets/Logo_EMS.webp");
 
@@ -67,7 +68,7 @@ function WaveDot({ delay, size = 8 }: { delay: number; size?: number }) {
         width: size,
         height: size,
         borderRadius: size / 2,
-        backgroundColor: "#D8C97B",
+        backgroundColor: COLORS.primary,
         transform: [{ translateY }, { scale }],
         opacity,
         marginHorizontal: 5,

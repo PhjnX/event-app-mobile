@@ -21,16 +21,19 @@ import { useDispatch } from "react-redux";
 import Toast from "react-native-toast-message";
 import { useAppSelector } from "../../hooks/useRedux";
 import apiService from "../../services/apiService";
+import { COLORS } from "../../constants/theme";
+import { laHetCho, laKhongGioiHan, moTaSucChua } from "../../utils/capacity";
 import {
   registerForEvent,
   addActivitiesToEvent,
 } from "../../store/slices/eventSlice";
+import { anhNguon } from "../../utils/image";
 
 const { width, height } = Dimensions.get("window");
 const HERO_HEIGHT = 300;
 
 const C = {
-  gold: "#D8C97B",
+  gold: COLORS.primary,
   goldDim: "rgba(216,201,123,0.1)",
   goldBorder: "rgba(216,201,123,0.25)",
   bg: "#0a0a0a",
@@ -105,7 +108,7 @@ const ActivityCard = ({
       {activity.activityImageUrl ? (
         <View style={ss.actImg}>
           <Image
-            source={{ uri: activity.activityImageUrl }}
+            source={anhNguon(activity.activityImageUrl)}
             style={{ width: "100%", height: "100%" }}
             resizeMode="cover"
           />
@@ -124,7 +127,6 @@ const ActivityCard = ({
           )}
         </View>
       ) : null}
-
       <View style={{ flex: 1, padding: 14 }}>
         <View
           style={{
@@ -167,7 +169,6 @@ const ActivityCard = ({
               {activity.endTime ? ` – ${formatTime(activity.endTime)}` : ""}
             </Text>
           </View>
-
           {/* Status icon */}
           {isRegistered ? (
             <View style={ss.registeredBadge}>
@@ -192,7 +193,6 @@ const ActivityCard = ({
             </View>
           ) : null}
         </View>
-
         <Text
           style={[
             ss.actTitle,
@@ -204,19 +204,13 @@ const ActivityCard = ({
         >
           {activity.activityName}
         </Text>
-
         {/* Info Tags (Room + Spots) */}
         <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
-          {activity.maxAttendees > 0 ? (
+          {!laKhongGioiHan(activity.maxAttendees) ? (
             <View style={ss.attendeesTag}>
               <Ionicons name="ticket" size={12} color={C.gold} />
               <Text style={ss.attendeesText}>
-                Còn{" "}
-                {Math.max(
-                  0,
-                  activity.maxAttendees - (activity.currentAttendees || 0),
-                )}{" "}
-                chỗ
+                {moTaSucChua(activity.maxAttendees, activity.currentAttendees)}
               </Text>
             </View>
           ) : (
@@ -225,7 +219,6 @@ const ActivityCard = ({
               <Text style={ss.attendeesText}>Không giới hạn chỗ</Text>
             </View>
           )}
-
           {activity.roomOrVenue ? (
             <View
               style={[
@@ -246,7 +239,6 @@ const ActivityCard = ({
             </View>
           ) : null}
         </View>
-
         {/* Presenter */}
         {activity.presenter && (
           <View
@@ -270,7 +262,7 @@ const ActivityCard = ({
             >
               {activity.presenter.avatarUrl ? (
                 <Image
-                  source={{ uri: activity.presenter.avatarUrl }}
+                  source={anhNguon(activity.presenter.avatarUrl)}
                   style={{ width: "100%", height: "100%" }}
                   resizeMode="cover"
                 />
@@ -296,7 +288,7 @@ const PresenterChip = ({ presenter }: { presenter: any }) => (
   <View style={{ alignItems: "center", marginRight: 16, width: 80 }}>
     <View style={ss.presenterAvatar}>
       <Image
-        source={{ uri: presenter.avatarUrl || "https://placehold.co/100" }}
+        source={anhNguon(presenter.avatarUrl)}
         style={{ width: "100%", height: "100%" }}
         resizeMode="cover"
       />
@@ -430,8 +422,8 @@ export default function EventDetailScreen() {
   }, [event, slug]);
 
   const checkIsFull = (act: any) => {
-    if (!act.maxAttendees || act.maxAttendees === 0) return false;
-    return (act.currentAttendees || 0) >= act.maxAttendees;
+    // 0 là hết chỗ, không phải không giới hạn (xem utils/capacity.ts)
+    return laHetCho(act.maxAttendees, act.currentAttendees);
   };
 
   // Hàm xử lý khi ấn chọn trong Modal
@@ -591,9 +583,7 @@ export default function EventDetailScreen() {
         {/* ── HERO ── */}
         <View style={{ height: HERO_HEIGHT }}>
           <Image
-            source={{
-              uri: event.bannerImageUrl || "https://placehold.co/600x300",
-            }}
+            source={anhNguon(event.bannerImageUrl)}
             style={StyleSheet.absoluteFillObject}
             resizeMode="cover"
           />
@@ -837,13 +827,12 @@ export default function EventDetailScreen() {
               <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
                 {detailAct.activityImageUrl ? (
                   <Image
-                    source={{ uri: detailAct.activityImageUrl }}
+                    source={anhNguon(detailAct.activityImageUrl)}
                     style={ss.modalImg}
                   />
                 ) : (
                   <View style={{ height: 24 }} />
                 )}
-
                 <View
                   style={{
                     padding: 24,
@@ -868,25 +857,25 @@ export default function EventDetailScreen() {
                     <View style={ss.modalTag}>
                       <Ionicons
                         name={
-                          detailAct.maxAttendees > 0 ? "ticket" : "infinite"
+                          laKhongGioiHan(detailAct.maxAttendees)
+                            ? "infinite"
+                            : "ticket"
                         }
                         size={14}
                         color={C.gold}
                       />
                       <Text style={ss.modalTagText}>
-                        {detailAct.maxAttendees > 0
-                          ? `Còn ${Math.max(0, detailAct.maxAttendees - (detailAct.currentAttendees || 0))} chỗ`
-                          : "Không giới hạn"}
+                        {moTaSucChua(
+                          detailAct.maxAttendees,
+                          detailAct.currentAttendees,
+                        )}
                       </Text>
                     </View>
                   </View>
-
                   <Text style={ss.modalTitle}>{detailAct.activityName}</Text>
-
                   {detailAct.description ? (
                     <Text style={ss.modalDesc}>{detailAct.description}</Text>
                   ) : null}
-
                   {detailAct.presenter && (
                     <View
                       style={{
@@ -897,11 +886,7 @@ export default function EventDetailScreen() {
                       }}
                     >
                       <Image
-                        source={{
-                          uri:
-                            detailAct.presenter.avatarUrl ||
-                            "https://placehold.co/100",
-                        }}
+                        source={anhNguon(detailAct.presenter.avatarUrl)}
                         style={{
                           width: 44,
                           height: 44,
@@ -982,8 +967,8 @@ const ss = StyleSheet.create({
   },
   progressFill: {
     height: 3,
-    backgroundColor: "#D8C97B",
-    shadowColor: "#D8C97B",
+    backgroundColor: COLORS.primary,
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 4,
@@ -1029,7 +1014,7 @@ const ss = StyleSheet.create({
     borderColor: "rgba(216,201,123,0.25)",
   },
   categoryText: {
-    color: "#D8C97B",
+    color: COLORS.primary,
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 2,
@@ -1097,7 +1082,7 @@ const ss = StyleSheet.create({
   descAccent: {
     width: 3,
     borderRadius: 2,
-    backgroundColor: "#D8C97B",
+    backgroundColor: COLORS.primary,
     alignSelf: "stretch",
   },
   descText: { flex: 1, color: "#999", fontSize: 15, lineHeight: 24 },
@@ -1136,7 +1121,7 @@ const ss = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 4,
   },
-  countText: { color: "#D8C97B", fontSize: 12, fontWeight: "700" },
+  countText: { color: COLORS.primary, fontSize: 12, fontWeight: "700" },
 
   actCard: {
     backgroundColor: "#111",
@@ -1233,7 +1218,7 @@ const ss = StyleSheet.create({
     lineHeight: 16,
   },
   presenterTitle: {
-    color: "#D8C97B",
+    color: COLORS.primary,
     fontSize: 10,
     marginTop: 2,
     textAlign: "center",
@@ -1262,7 +1247,7 @@ const ss = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#D8C97B",
+    backgroundColor: COLORS.primary,
     borderRadius: 16,
     paddingHorizontal: 22,
     paddingVertical: 14,
@@ -1274,7 +1259,7 @@ const ss = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#D8C97B",
+    backgroundColor: COLORS.primary,
     borderRadius: 18,
     paddingVertical: 16,
   },

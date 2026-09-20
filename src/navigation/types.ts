@@ -26,7 +26,16 @@ export type RootStackParamList = {
   OrganizerMain: undefined;
   EventDetail: { slug: string };
   NewsDetail: { slug: string };
-  EventMoments: { eventId: number; eventName: string };
+  EventMoments: {
+    eventId: number;
+    eventName: string;
+    canPost?: boolean;
+    ticketStatus?: string;
+  };
+  CommunityGuidelines: undefined;
+  PrivacyPolicy: undefined;
+  BlockedUsers: undefined;
+  DeleteAccount: undefined;
   MyTickets: undefined;
   Profile: undefined;
   ActivityQRScanner: { ticketCode?: string } | undefined;

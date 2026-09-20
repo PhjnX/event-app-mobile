@@ -1,55 +1,54 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
-  ScrollView,
   Image,
-  ActivityIndicator,
   StyleSheet,
   Share,
   Linking,
   Dimensions,
-  NativeSyntheticEvent,
-  NativeScrollEvent,
+  Animated,
+  Modal,
+  Pressable,
+  ScrollView,
+  StatusBar,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useIsFocused, useNavigation, useRoute } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useAppDispatch, useAppSelector } from "../../hooks/useRedux";
-import {
-  fetchPostDetail,
-  clearPostDetail,
-  fetchPosts,
-} from "../../store/slices/newsSlice";
+import { parseServerDate } from "../../utils/datetime";
+import { parseInlineHtml, stripHtml } from "../../utils/html";
+import { isVideoUrl } from "../../utils/media";
+import { COLORS } from "../../constants/theme";
+import { WEBIE_CONTACT, WEB_DOMAIN } from "../../constants/contact";
+import { fetchPostDetail, fetchPosts } from "../../store/slices/newsSlice";
+import { NewsRowCard, NewsRowDivider } from "../../components/cards/NewsCard";
+import { Skeleton } from "../../components/common/Skeleton";
+import type { Post } from "../../models/news";
 
-const DOMAIN = "https://ems.webie.com.vn";
-const LOGO = require("../../../assets/Logo_EMS.webp");
+const { width: W } = Dimensions.get("window");
+const HERO_H = Math.round(W * 0.72);
 
 const C = {
-  gold: "#D8C97B",
+  gold: COLORS.primary,
   goldDim: "rgba(216,201,123,0.10)",
   goldBorder: "rgba(216,201,123,0.25)",
   bg: "#0a0a0a",
-  bgCard: "#111111",
   white: "#ffffff",
-  textBody: "#bbbbbb",
-  gray: "#888888",
-  muted: "#555555",
+  textBody: "#c4c4c4",
+  muted: "#777777",
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const isVideoUrl = (url?: string | null): boolean => {
-  if (!url) return false;
-  return /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(url.split("?")[0]);
-};
-
-const formatDate = (dateString: string) => {
-  if (!dateString) return "";
-  return new Date(dateString).toLocaleDateString("vi-VN", {
+const formatDate = (iso?: string) => {
+  if (!iso) return "";
+  const d = parseServerDate(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("vi-VN", {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -57,169 +56,114 @@ const formatDate = (dateString: string) => {
   });
 };
 
-const formatDateShort = (dateString: string) => {
-  if (!dateString) return "";
-  return new Date(dateString).toLocaleDateString("vi-VN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-};
+const moc = (p: Post) => parseServerDate(p.createdAt).getTime() || 0;
 
-const sanitizeText = (text: string) =>
-  (text || "").replace(/\n+/g, " ").replace(/  +/g, " ").trim();
-
-const stripHtml = (html: string) =>
-  (html || "")
-    .replace(/<[^>]*>/g, "")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&#160;/g, " ")
-    .replace(/\u00a0/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .trim();
-
-// ─── HeroMedia: Image or Video for hero ──────────────────────────────────────
-const HeroMedia = ({ uri }: { uri?: string | null }) => {
-  const fallback = "https://placehold.co/600x400/111/333?text=News";
-  const player = useVideoPlayer(isVideoUrl(uri) && uri ? uri : "", (p) => {
-    p.loop = true;
-    p.muted = true;
-    p.play();
-  });
-
-  if (isVideoUrl(uri) && uri) {
-    return (
-      <>
-        <VideoView
-          player={player}
-          style={StyleSheet.absoluteFillObject}
-          contentFit="cover"
-          nativeControls={false}
-        />
-        <View style={ss.videoBadge}>
-          <Ionicons name="play-circle" size={13} color={C.gold} />
-          <Text style={ss.videoBadgeText}>VIDEO</Text>
-        </View>
-      </>
-    );
-  }
-  return (
-    <Image
-      source={{ uri: uri || fallback }}
-      style={StyleSheet.absoluteFillObject}
-      resizeMode="cover"
-    />
-  );
+/** Mở link trong bài. Link tương đối ("/news/…") thì trỏ về bản web. */
+const moLink = (href: string) => {
+  const url = /^(https?:|mailto:|tel:)/i.test(href)
+    ? href
+    : href.startsWith("/")
+      ? WEB_DOMAIN + href
+      : `https://${href}`;
+  Linking.openURL(url).catch(() => {});
 };
 
 // ─── InlineText ───────────────────────────────────────────────────────────────
 const InlineText = ({ html, style }: { html: string; style?: any }) => {
-  const segments: {
-    text: string;
-    bold?: boolean;
-    italic?: boolean;
-    mark?: boolean;
-  }[] = [];
-  const regex =
-    /<b>(.*?)<\/b>|<strong>(.*?)<\/strong>|<i>(.*?)<\/i>|<em>(.*?)<\/em>|<mark[^>]*>(.*?)<\/mark>|([^<]+)/gs;
-  const clean = sanitizeText(html || "").replace(
-    /<(?!\/?(b|strong|i|em|mark)[ >])[^>]*>/g,
-    "",
-  );
-  let match;
-  while ((match = regex.exec(clean)) !== null) {
-    if (match[1] !== undefined || match[2] !== undefined)
-      segments.push({ text: match[1] ?? match[2], bold: true });
-    else if (match[3] !== undefined || match[4] !== undefined)
-      segments.push({ text: match[3] ?? match[4], italic: true });
-    else if (match[5] !== undefined)
-      segments.push({ text: match[5], mark: true });
-    else if (match[6] !== undefined) segments.push({ text: match[6] });
-  }
-  if (segments.length === 0)
-    return <Text style={style}>{sanitizeText(stripHtml(html))}</Text>;
+  const segs = parseInlineHtml(html);
+  if (!segs.length) return null;
   return (
     <Text style={style}>
-      {segments.map((seg, i) => (
+      {segs.map((seg, i) => (
         <Text
           key={i}
+          onPress={seg.href ? () => moLink(seg.href!) : undefined}
           style={[
             seg.bold && { fontWeight: "800", color: "#fff" },
             seg.italic && { fontStyle: "italic" },
+            seg.underline && { textDecorationLine: "underline" },
             seg.mark && { color: C.gold, fontWeight: "700" },
+            seg.href && { color: C.gold, textDecorationLine: "underline" },
           ]}
         >
-          {sanitizeText(seg.text)}
+          {seg.text}
         </Text>
       ))}
     </Text>
   );
 };
 
-// ─── BlockImage: supports video files from EditorJS image blocks ──────────────
-const BlockImage = ({ url, caption }: { url: string; caption?: string }) => {
-  const isVideo = isVideoUrl(url);
-  const player = useVideoPlayer(isVideo ? url : "", (p) => {
-    p.loop = true;
-    p.muted = true;
-    p.play();
-  });
+// ─── Media trong bài ──────────────────────────────────────────────────────────
+const Caption = ({ text }: { text?: string }) =>
+  text && stripHtml(text) ? (
+    <Text style={ss.caption}>{stripHtml(text)}</Text>
+  ) : null;
 
+/**
+ * Ảnh trong bài giữ đúng tỉ lệ gốc, chạm để xem toàn màn hình.
+ *
+ * Bản cũ cắt cứng mọi ảnh cao 220px: tấm infographic "Lịch bắn pháo hoa" mất cả
+ * đầu lẫn đuôi, người đọc không xem được địa điểm nào. Ảnh quá dọc (hẹp hơn
+ * 0.6) thì thu vừa khung chứ không cắt, và luôn có nút phóng to.
+ */
+const BlockImage = ({
+  url,
+  caption,
+  onOpen,
+}: {
+  url: string;
+  caption?: string;
+  onOpen: (url: string) => void;
+}) => {
+  const [ratio, setRatio] = useState<number | null>(null);
+  const quaDoc = ratio !== null && ratio < 0.6;
   return (
-    <View style={ss.blockImgWrap}>
-      {isVideo ? (
-        <VideoView
-          player={player}
-          style={{ width: "100%", height: 220 }}
-          contentFit="cover"
-          nativeControls={false}
-        />
-      ) : (
+    <View style={ss.blockMedia}>
+      <Pressable onPress={() => onOpen(url)}>
         <Image
           source={{ uri: url }}
-          style={{ width: "100%", height: 220 }}
-          resizeMode="cover"
-        />
-      )}
-      {isVideo && (
-        <View
-          style={[
-            ss.videoBadge,
-            { top: 10, left: 10, right: undefined, bottom: undefined },
-          ]}
-        >
-          <Ionicons name="play-circle" size={13} color={C.gold} />
-          <Text style={ss.videoBadgeText}>VIDEO</Text>
-        </View>
-      )}
-      {caption ? (
-        <View
           style={{
-            backgroundColor: "#111",
-            paddingHorizontal: 12,
-            paddingVertical: 8,
+            width: "100%",
+            aspectRatio: ratio === null ? 16 / 10 : Math.max(ratio, 0.6),
+            backgroundColor: "#141414",
           }}
-        >
-          <Text
-            style={{
-              color: C.muted,
-              fontSize: 12,
-              fontStyle: "italic",
-              textAlign: "center",
-            }}
-          >
-            {stripHtml(caption)}
-          </Text>
+          resizeMode={quaDoc ? "contain" : "cover"}
+          onLoad={(e: any) => {
+            const s = e?.nativeEvent?.source;
+            if (s?.width && s?.height) setRatio(s.width / s.height);
+          }}
+        />
+        <View style={ss.expandBtn}>
+          <Ionicons name="expand-outline" size={14} color="#fff" />
         </View>
-      ) : null}
+      </Pressable>
+      <Caption text={caption} />
     </View>
   );
 };
 
-// ─── renderBlock ──────────────────────────────────────────────────────────────
-const renderBlock = (block: any, index: number) => {
+/** Video trong bài: có nút điều khiển, không tự phát. */
+const BlockVideo = ({ url, caption }: { url: string; caption?: string }) => {
+  const player = useVideoPlayer(url);
+  return (
+    <View style={ss.blockMedia}>
+      <VideoView
+        player={player}
+        style={{ width: "100%", aspectRatio: 16 / 9 }}
+        contentFit="contain"
+        nativeControls
+      />
+      <Caption text={caption} />
+    </View>
+  );
+};
+
+// ─── Khối nội dung EditorJS ───────────────────────────────────────────────────
+const renderBlock = (
+  block: any,
+  index: number,
+  onOpenImage: (url: string) => void,
+) => {
   const { type, data } = block;
 
   switch (type) {
@@ -227,54 +171,29 @@ const renderBlock = (block: any, index: number) => {
       const level = data?.level || 2;
       if (level <= 2) {
         return (
-          <View
-            key={index}
-            style={{
-              borderLeftWidth: 3,
-              borderLeftColor: C.gold,
-              paddingLeft: 12,
-              marginTop: 20,
-              marginBottom: 4,
-            }}
-          >
+          <View key={index} style={ss.h2Wrap}>
             <InlineText
               html={data?.text || ""}
               style={{
                 color: C.white,
                 fontSize: level === 1 ? 24 : 20,
                 fontWeight: "800",
-                letterSpacing: -0.5,
+                letterSpacing: -0.4,
                 lineHeight: level === 1 ? 32 : 28,
               }}
             />
           </View>
         );
       }
-      if (level === 3) {
-        return (
-          <View key={index} style={{ marginTop: 16, marginBottom: 4 }}>
-            <InlineText
-              html={data?.text || ""}
-              style={{
-                color: "#dddddd",
-                fontSize: 17,
-                fontWeight: "700",
-                letterSpacing: -0.3,
-                lineHeight: 24,
-              }}
-            />
-          </View>
-        );
-      }
       return (
-        <View key={index} style={{ marginTop: 12, marginBottom: 4 }}>
+        <View key={index} style={{ marginTop: 16, marginBottom: 6 }}>
           <InlineText
             html={data?.text || ""}
             style={{
-              color: "#aaaaaa",
-              fontSize: level === 4 ? 15 : 13,
+              color: level === 3 ? "#e5e5e5" : "#bbbbbb",
+              fontSize: level === 3 ? 17 : 15,
               fontWeight: "700",
-              lineHeight: 20,
+              lineHeight: level === 3 ? 24 : 21,
             }}
           />
         </View>
@@ -285,10 +204,10 @@ const renderBlock = (block: any, index: number) => {
       const text = data?.text || "";
       if (!stripHtml(text)) return null;
       return (
-        <View key={index} style={{ marginBottom: 12 }}>
+        <View key={index} style={{ marginBottom: 14 }}>
           <InlineText
             html={text}
-            style={{ color: C.textBody, fontSize: 15, lineHeight: 26 }}
+            style={{ color: C.textBody, fontSize: 16, lineHeight: 27 }}
           />
         </View>
       );
@@ -301,21 +220,12 @@ const renderBlock = (block: any, index: number) => {
         <View key={index} style={{ marginBottom: 16 }}>
           {items.map((item: any, i: number) => {
             const html =
-              typeof item === "string" ? item : item.content || item.text || "";
+              typeof item === "string" ? item : item?.content || item?.text || "";
             return (
-              <View
-                key={i}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "flex-start",
-                  marginBottom: 8,
-                }}
-              >
+              <View key={i} style={{ flexDirection: "row", marginBottom: 8 }}>
                 {ordered ? (
                   <View style={ss.orderedBullet}>
-                    <Text
-                      style={{ color: C.gold, fontSize: 11, fontWeight: "800" }}
-                    >
+                    <Text style={{ color: C.gold, fontSize: 11, fontWeight: "800" }}>
                       {i + 1}
                     </Text>
                   </View>
@@ -324,12 +234,7 @@ const renderBlock = (block: any, index: number) => {
                 )}
                 <InlineText
                   html={html}
-                  style={{
-                    color: C.textBody,
-                    fontSize: 15,
-                    lineHeight: 26,
-                    flex: 1,
-                  }}
+                  style={{ color: C.textBody, fontSize: 16, lineHeight: 27, flex: 1 }}
                 />
               </View>
             );
@@ -341,22 +246,21 @@ const renderBlock = (block: any, index: number) => {
     case "image": {
       const url = data?.file?.url || data?.url || "";
       if (!url) return null;
-      return <BlockImage key={index} url={url} caption={data?.caption} />;
+      return isVideoUrl(url) ? (
+        <BlockVideo key={index} url={url} caption={data?.caption} />
+      ) : (
+        <BlockImage
+          key={index}
+          url={url}
+          caption={data?.caption}
+          onOpen={onOpenImage}
+        />
+      );
     }
 
     case "quote":
       return (
-        <View
-          key={index}
-          style={{
-            backgroundColor: "#111",
-            borderColor: "rgba(216,201,123,0.15)",
-            borderWidth: 1,
-            borderRadius: 16,
-            padding: 20,
-            marginBottom: 16,
-          }}
-        >
+        <View key={index} style={ss.quote}>
           <MaterialCommunityIcons
             name="format-quote-open"
             size={24}
@@ -365,22 +269,10 @@ const renderBlock = (block: any, index: number) => {
           />
           <InlineText
             html={data?.text || ""}
-            style={{
-              color: "#cccccc",
-              fontSize: 15,
-              fontStyle: "italic",
-              lineHeight: 26,
-            }}
+            style={{ color: "#d4d4d4", fontSize: 16, fontStyle: "italic", lineHeight: 26 }}
           />
-          {data?.caption ? (
-            <Text
-              style={{
-                color: C.gold,
-                fontSize: 12,
-                fontWeight: "700",
-                marginTop: 8,
-              }}
-            >
+          {data?.caption && stripHtml(data.caption) ? (
+            <Text style={{ color: C.gold, fontSize: 12, fontWeight: "700", marginTop: 8 }}>
               — {stripHtml(data.caption)}
             </Text>
           ) : null}
@@ -392,18 +284,7 @@ const renderBlock = (block: any, index: number) => {
 
     case "warning":
       return (
-        <View
-          key={index}
-          style={{
-            flexDirection: "row",
-            backgroundColor: "rgba(216,201,123,0.07)",
-            borderColor: C.goldBorder,
-            borderWidth: 1,
-            borderRadius: 12,
-            padding: 14,
-            marginBottom: 16,
-          }}
-        >
+        <View key={index} style={ss.warning}>
           <Ionicons
             name="warning-outline"
             size={18}
@@ -412,20 +293,13 @@ const renderBlock = (block: any, index: number) => {
           />
           <View style={{ flex: 1 }}>
             {data?.title ? (
-              <Text
-                style={{
-                  color: C.gold,
-                  fontSize: 13,
-                  fontWeight: "800",
-                  marginBottom: 4,
-                }}
-              >
-                {data.title}
+              <Text style={{ color: C.gold, fontSize: 13, fontWeight: "800", marginBottom: 4 }}>
+                {stripHtml(data.title)}
               </Text>
             ) : null}
             <InlineText
               html={data?.message || ""}
-              style={{ color: "#999", fontSize: 13, lineHeight: 20 }}
+              style={{ color: "#aaa", fontSize: 14, lineHeight: 21 }}
             />
           </View>
         </View>
@@ -434,30 +308,17 @@ const renderBlock = (block: any, index: number) => {
     case "table": {
       const rows: string[][] = data?.content || [];
       return (
-        <View
-          key={index}
-          style={{
-            marginBottom: 16,
-            borderRadius: 12,
-            overflow: "hidden",
-            borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.07)",
-          }}
-        >
-          {rows.map((row: string[], ri: number) => (
+        <View key={index} style={ss.table}>
+          {rows.map((row, ri) => (
             <View
               key={ri}
               style={{
                 flexDirection: "row",
                 backgroundColor:
-                  ri === 0
-                    ? "rgba(216,201,123,0.10)"
-                    : ri % 2 === 0
-                      ? "#0e0e0e"
-                      : "#111",
+                  ri === 0 ? "rgba(216,201,123,0.10)" : ri % 2 === 0 ? "#0e0e0e" : "#111",
               }}
             >
-              {row.map((cell: string, ci: number) => (
+              {row.map((cell, ci) => (
                 <View
                   key={ci}
                   style={{
@@ -472,7 +333,7 @@ const renderBlock = (block: any, index: number) => {
                     style={
                       ri === 0
                         ? { color: C.gold, fontSize: 13, fontWeight: "700" }
-                        : { color: "#999", fontSize: 13, lineHeight: 18 }
+                        : { color: "#aaa", fontSize: 13, lineHeight: 18 }
                     }
                   >
                     {stripHtml(cell)}
@@ -490,683 +351,653 @@ const renderBlock = (block: any, index: number) => {
   }
 };
 
-// ─── DiamondDivider ───────────────────────────────────────────────────────────
 const DiamondDivider = () => (
-  <View
-    style={{
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-      marginVertical: 20,
-    }}
-  >
-    <View
-      style={{ flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.06)" }}
-    />
+  <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 22 }}>
+    <View style={{ flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.06)" }} />
     <View style={ss.diamond} />
-    <View
-      style={{ flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.06)" }}
-    />
+    <View style={{ flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.06)" }} />
   </View>
 );
 
-// ─── ReadingProgressBar ───────────────────────────────────────────────────────
-const ReadingProgressBar = ({ progress }: { progress: number }) => (
-  <View style={ss.progressBarBg}>
-    <View style={[ss.progressBarFill, { width: `${progress * 100}%` }]} />
-  </View>
-);
-
-// ─── ContactStrip ─────────────────────────────────────────────────────────────
-const ContactStrip = () => (
-  <View
-    style={{
-      borderLeftWidth: 2,
-      borderLeftColor: C.goldBorder,
-      paddingLeft: 16,
-      paddingVertical: 4,
-    }}
-  >
-    <Text
-      style={{
-        color: C.gold,
-        fontSize: 10,
-        fontWeight: "900",
-        letterSpacing: 2.5,
-        marginBottom: 12,
-      }}
-    >
-      LIÊN HỆ
-    </Text>
-    <View style={{ gap: 14 }}>
-      {[
-        {
-          icon: "call-outline",
-          label: "0969 838 467",
-          sub: "Huyen DANG",
-          href: "tel:0969838467",
-        },
-        {
-          icon: "mail-outline",
-          label: "huyen.dang@webie.com.vn",
-          sub: "Email",
-          href: "mailto:huyen.dang@webie.com.vn",
-        },
-        {
-          icon: "globe-outline",
-          label: "webie.com.vn",
-          sub: "Website",
-          href: "https://webie.com.vn",
-        },
-      ].map((item) => (
-        <TouchableOpacity
-          key={item.href}
-          style={{ flexDirection: "row", alignItems: "center" }}
-          onPress={() => Linking.openURL(item.href)}
-        >
-          <Ionicons name={item.icon as any} size={14} color={C.gold} />
-          <View style={{ marginLeft: 8 }}>
-            <Text style={{ color: "#ddd", fontSize: 13, fontWeight: "600" }}>
-              {item.label}
-            </Text>
-            <Text style={{ color: C.muted, fontSize: 11, marginTop: 1 }}>
-              {item.sub}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      ))}
-    </View>
-  </View>
-);
-
-// ─── TagsRow ──────────────────────────────────────────────────────────────────
-const TagsRow = ({ tags }: { tags: string[] }) => {
-  if (!tags?.length) return null;
-  return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "flex-start",
-        flexWrap: "wrap",
-      }}
-    >
-      <Ionicons
-        name="pricetag-outline"
-        size={13}
-        color={C.gold}
-        style={{ marginRight: 8 }}
-      />
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, flex: 1 }}>
-        {tags.map((tag) => (
-          <View
-            key={tag}
-            style={{
-              paddingHorizontal: 10,
-              paddingVertical: 4,
-              borderRadius: 100,
-              backgroundColor: "rgba(255,255,255,0.04)",
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.08)",
-            }}
-          >
-            <Text style={{ color: C.gray, fontSize: 11 }}>#{tag}</Text>
-          </View>
-        ))}
+const TagsRow = ({ tags }: { tags: string[] }) => (
+  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+    {tags.map((tag) => (
+      <View key={tag} style={ss.tag}>
+        <Text style={{ color: "#999", fontSize: 12 }}>#{tag}</Text>
       </View>
-    </View>
-  );
-};
-
-// ─── AuthorByline ─────────────────────────────────────────────────────────────
-const AuthorByline = ({
-  dateStr,
-  onShare,
-}: {
-  dateStr: string;
-  onShare: () => void;
-}) => (
-  <View
-    style={{
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    }}
-  >
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-      <View style={ss.authorLogoWrap}>
-        <Image
-          source={LOGO}
-          style={{ width: "100%", height: "100%" }}
-          resizeMode="contain"
-        />
-      </View>
-      <View>
-        <Text style={{ color: "#ddd", fontSize: 13, fontWeight: "700" }}>
-          Webie Vietnam
-        </Text>
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 5,
-            marginTop: 2,
-          }}
-        >
-          <Ionicons name="time-outline" size={11} color={C.gold} />
-          <Text style={{ color: C.muted, fontSize: 11 }}>{dateStr}</Text>
-        </View>
-      </View>
-    </View>
-    <TouchableOpacity
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 6,
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        borderRadius: 100,
-        borderWidth: 1,
-        borderColor: C.goldBorder,
-        backgroundColor: C.goldDim,
-      }}
-      onPress={onShare}
-      activeOpacity={0.75}
-    >
-      <Ionicons name="share-social-outline" size={16} color={C.gold} />
-      <Text style={{ color: C.gold, fontSize: 12, fontWeight: "700" }}>
-        Chia sẻ
-      </Text>
-    </TouchableOpacity>
+    ))}
   </View>
 );
 
-// ─── RelatedPostCard ──────────────────────────────────────────────────────────
-const RelatedPostCard = ({
-  post,
-  onPress,
-}: {
-  post: any;
-  onPress: () => void;
-}) => {
-  const title = post?.translations?.vi?.title || post?.title || "Bài viết";
-  const thumb =
-    post?.thumbnailUrl || "https://placehold.co/400x225/111/333?text=News";
-  const isVideo = isVideoUrl(thumb);
-  const player = useVideoPlayer(isVideo ? thumb : "", (p) => {
+// ─── Ảnh bìa ──────────────────────────────────────────────────────────────────
+const HeroVideo = ({ uri, active }: { uri: string; active: boolean }) => {
+  const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
     p.muted = true;
-    p.play();
   });
-
+  // Mở bài liên quan (màn mới đè lên) thì video bài này tạm dừng
+  useEffect(() => {
+    try {
+      if (active) player.play();
+      else player.pause();
+    } catch {}
+  }, [active, player]);
   return (
-    <TouchableOpacity
-      style={[
-        ss.relCard,
-        { backgroundColor: C.bgCard, borderColor: "rgba(255,255,255,0.07)" },
-      ]}
-      onPress={onPress}
-      activeOpacity={0.82}
-    >
-      <View style={ss.relThumbWrap}>
-        {isVideo ? (
-          <VideoView
-            player={player}
-            style={StyleSheet.absoluteFillObject}
-            contentFit="cover"
-            nativeControls={false}
-          />
-        ) : (
-          <Image
-            source={{ uri: thumb }}
-            style={StyleSheet.absoluteFillObject}
-            resizeMode="cover"
-          />
-        )}
-        <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.55)"]}
-          style={StyleSheet.absoluteFillObject}
-        />
-        {isVideo && (
-          <View
-            style={[
-              ss.videoBadge,
-              { bottom: 6, right: 6, top: undefined, left: undefined },
-            ]}
-          >
-            <Ionicons name="play" size={9} color="#000" />
-            <Text style={ss.videoBadgeText}>VIDEO</Text>
-          </View>
-        )}
-      </View>
-      <View
-        style={{
-          flex: 1,
-          paddingHorizontal: 14,
-          paddingVertical: 12,
-          justifyContent: "space-between",
-        }}
-      >
-        <Text
-          style={{
-            color: "#ccc",
-            fontSize: 13,
-            fontWeight: "700",
-            lineHeight: 19,
-          }}
-          numberOfLines={2}
-        >
-          {title}
-        </Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-          <Ionicons name="calendar-outline" size={10} color={C.gold} />
-          <Text style={{ color: C.muted, fontSize: 11, flex: 1 }}>
-            {formatDateShort(post?.createdAt)}
-          </Text>
-          <View style={ss.relArrow}>
-            <Ionicons name="arrow-forward" size={10} color={C.gold} />
-          </View>
-        </View>
-      </View>
-    </TouchableOpacity>
+    <VideoView
+      player={player}
+      style={StyleSheet.absoluteFillObject}
+      contentFit="cover"
+      nativeControls={false}
+    />
   );
 };
 
-// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
+const HeroMedia = ({
+  uri,
+  onOpen,
+  active,
+}: {
+  uri?: string | null;
+  onOpen: (url: string) => void;
+  active: boolean;
+}) => {
+  if (!uri) {
+    return (
+      <View style={[StyleSheet.absoluteFillObject, ss.center, { backgroundColor: "#141414" }]}>
+        <Ionicons name="newspaper-outline" size={48} color="#333" />
+      </View>
+    );
+  }
+  if (isVideoUrl(uri)) return <HeroVideo uri={uri} active={active} />;
+  return (
+    <Pressable style={StyleSheet.absoluteFillObject} onPress={() => onOpen(uri)}>
+      <Image source={{ uri }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+    </Pressable>
+  );
+};
+
+// ─── Xem ảnh toàn màn hình ────────────────────────────────────────────────────
+/**
+ * Ảnh hiện hết bề ngang, cuộn dọc được — đủ để đọc hết một tấm infographic dài.
+ * iOS phóng to bằng hai ngón qua maximumZoomScale; Android chưa có (cần thêm
+ * thư viện cử chỉ), nhưng ảnh không còn bị cắt nên vẫn đọc được trọn.
+ */
+const ImageViewer = ({
+  url,
+  onClose,
+  topInset,
+}: {
+  url: string | null;
+  onClose: () => void;
+  topInset: number;
+}) => {
+  const [ratio, setRatio] = useState(1);
+  useEffect(() => setRatio(1), [url]);
+
+  return (
+    <Modal
+      visible={!!url}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <View style={{ flex: 1, backgroundColor: "#000" }}>
+        {url ? (
+          <ScrollView
+            maximumZoomScale={4}
+            minimumZoomScale={1}
+            centerContent
+            contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}
+            showsVerticalScrollIndicator={false}
+          >
+            <Image
+              source={{ uri: url }}
+              style={{ width: W, height: W / ratio }}
+              resizeMode="contain"
+              onLoad={(e: any) => {
+                const s = e?.nativeEvent?.source;
+                if (s?.width && s?.height) setRatio(s.width / s.height);
+              }}
+            />
+          </ScrollView>
+        ) : null}
+        <TouchableOpacity
+          onPress={onClose}
+          style={[ss.navBtn, { position: "absolute", top: topInset + 10, right: 16 }]}
+          accessibilityLabel="Đóng ảnh"
+        >
+          <Ionicons name="close" size={22} color="#fff" />
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+};
+
+// ─── Bảng liên hệ ─────────────────────────────────────────────────────────────
+const ContactSheet = ({ visible, onClose }: { visible: boolean; onClose: () => void }) => {
+  const rows = [
+    { icon: "call-outline", label: WEBIE_CONTACT.phoneLabel, sub: "Gọi điện", href: `tel:${WEBIE_CONTACT.phone}` },
+    { icon: "mail-outline", label: WEBIE_CONTACT.email, sub: "Gửi email", href: `mailto:${WEBIE_CONTACT.email}` },
+    { icon: "globe-outline", label: WEBIE_CONTACT.websiteLabel, sub: "Mở website", href: WEBIE_CONTACT.website },
+  ] as const;
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable
+        style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" }}
+        onPress={onClose}
+      >
+        <Pressable onPress={() => {}} style={ss.sheet}>
+          <View style={ss.sheetHandle} />
+          <Text style={{ color: "#fff", fontSize: 17, fontWeight: "800", marginBottom: 6 }}>
+            Liên hệ Webie Vietnam
+          </Text>
+          {rows.map((r) => (
+            <TouchableOpacity
+              key={r.href}
+              activeOpacity={0.7}
+              onPress={() => {
+                onClose();
+                Linking.openURL(r.href).catch(() => {});
+              }}
+              style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12 }}
+            >
+              <View style={ss.sheetIcon}>
+                <Ionicons name={r.icon} size={18} color={C.gold} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 14 }}>
+                <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>{r.label}</Text>
+                <Text style={{ color: "#666", fontSize: 12, marginTop: 2 }}>{r.sub}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#444" />
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity activeOpacity={0.8} onPress={onClose} style={ss.sheetCancel}>
+            <Text style={{ color: "#bbb", fontSize: 14, fontWeight: "700" }}>Đóng</Text>
+          </TouchableOpacity>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+};
+
+// ─── MÀN CHÍNH ────────────────────────────────────────────────────────────────
 export default function NewsDetailScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const dispatch = useAppDispatch();
+  const insets = useSafeAreaInsets();
+  const focused = useIsFocused();
   const { slug } = route.params || {};
 
-  const newsState = useAppSelector((state: any) => state.news);
-  const postDetail = newsState?.postDetail;
-  const isLoading = newsState?.isLoading || false;
-  const allPosts: any[] = newsState?.posts || newsState?.data || [];
+  const allPosts: Post[] = useAppSelector((s: any) => s.news?.posts) || [];
 
-  const [scrollProgress, setScrollProgress] = useState(0);
-  const contentHeight = useRef(0);
-  const scrollRef = useRef<ScrollView>(null);
+  // Danh sách tin trả sẵn nội dung đầy đủ, nên bài mở từ danh sách hiện ngay
+  // không phải chờ mạng; bản mới nhất từ /posts/{slug} tải về thì thay vào.
+  const cached = useMemo(
+    () =>
+      allPosts.find(
+        (p) => p && (p.slug === slug || String(p.id) === String(slug)),
+      ) || null,
+    [allPosts, slug],
+  );
 
-  const handleScroll = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const y = e.nativeEvent.contentOffset.y;
-      const visibleH = e.nativeEvent.layoutMeasurement.height;
-      const total = contentHeight.current - visibleH;
-      if (total > 0) setScrollProgress(Math.min(y / total, 1));
-    },
+  // Bài được giữ trong state riêng của từng màn. Bản cũ dùng chung một
+  // postDetail trong Redux: mở bài liên quan rồi quay lại thì bài trước đã
+  // bị màn sau xoá mất dữ liệu, chỉ còn vòng xoay mãi mãi.
+  const [post, setPost] = useState<Post | null>(cached);
+  const [status, setStatus] = useState<"loading" | "ok" | "error">(
+    cached ? "ok" : "loading",
+  );
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [contactOpen, setContactOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!slug) {
+      setStatus("error");
+      return;
+    }
+    setStatus((s) => (s === "ok" ? "ok" : "loading"));
+    try {
+      const fresh = await dispatch(fetchPostDetail({ slug, lang: "vi" }) as any).unwrap();
+      if (fresh && fresh.title) {
+        setPost(fresh);
+        setStatus("ok");
+      } else {
+        setStatus((s) => (s === "ok" ? "ok" : "error"));
+      }
+    } catch {
+      // Đang hiện bản từ danh sách thì cứ giữ; chưa có gì mới báo lỗi
+      setStatus((s) => (s === "ok" ? "ok" : "error"));
+    }
+  }, [slug, dispatch]);
+
+  useEffect(() => {
+    load();
+    // Chỉ tải danh sách khi chưa có (để có bài liên quan). Bản cũ tải lại cả
+    // danh sách 290 KB mỗi lần mở một bài.
+    if (allPosts.length === 0) dispatch(fetchPosts({ lang: "vi" }) as any);
+  }, [slug]);
+
+  // Danh sách về sau khi màn đã mở: dùng luôn nếu chưa có bài
+  useEffect(() => {
+    if (!post && cached) {
+      setPost(cached);
+      setStatus("ok");
+    }
+  }, [cached]);
+
+  const blocks = useMemo(() => {
+    if (!post?.content) return [];
+    let raw: any[] = [];
+    try {
+      raw = JSON.parse(post.content)?.blocks || [];
+    } catch {
+      raw = [{ type: "paragraph", data: { text: post.content } }];
+    }
+    return raw.filter(
+      (b: any) => b?.type !== "paragraph" || stripHtml(b.data?.text || "").length > 0,
+    );
+  }, [post?.content]);
+
+  // Bài liên quan: ưu tiên cùng danh mục và trùng tag, rồi tới bài mới hơn.
+  // Bản cũ lấy đại ba bài đầu danh sách.
+  const related = useMemo(() => {
+    if (!post) return [];
+    const tags = new Set((post.tags || []).map((t) => t.toLowerCase()));
+    const diem = (p: Post) =>
+      (post.categoryName && p.categoryName === post.categoryName ? 2 : 0) +
+      (p.tags || []).filter((t) => tags.has(t.toLowerCase())).length;
+    return allPosts
+      .filter((p) => p && p.id !== post.id && p.slug !== post.slug)
+      .map((p) => ({ p, d: diem(p), t: moc(p) }))
+      .sort((a, b) => b.d - a.d || b.t - a.t)
+      .slice(0, 3)
+      .map((x) => x.p);
+  }, [allPosts, post]);
+
+  const handleShare = useCallback(async () => {
+    if (!post) return;
+    const url = `${WEB_DOMAIN}/news/${post.slug || slug}`;
+    try {
+      await Share.share({ title: post.title, message: `${post.title}\n${url}`, url });
+    } catch {}
+  }, [post, slug]);
+
+  // ── Hoạt ảnh theo cuộn: chạy trên luồng UI (useNativeDriver) ────────────
+  // Bản cũ setState ở mỗi sự kiện cuộn để vẽ thanh tiến độ, tức dựng lại cả
+  // bài viết 60 lần mỗi giây.
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const quangCuon = useRef(new Animated.Value(1)).current;
+  const khung = useRef({ view: 0, content: 0 });
+  const capNhatQuangCuon = () =>
+    quangCuon.setValue(Math.max(1, khung.current.content - khung.current.view));
+
+  const { nenDau, tienDo } = useMemo(
+    () => ({
+      nenDau: scrollY.interpolate({
+        inputRange: [HERO_H - 150, HERO_H - 70],
+        outputRange: [0, 1],
+        extrapolate: "clamp",
+      }),
+      tienDo: Animated.divide(scrollY, quangCuon).interpolate({
+        inputRange: [0, 1],
+        outputRange: [-W, 0],
+        extrapolate: "clamp",
+      }),
+    }),
     [],
   );
 
-  useEffect(() => {
-    setScrollProgress(0);
-    scrollRef.current?.scrollTo({ y: 0, animated: false });
-    if (slug) dispatch(fetchPostDetail({ slug, lang: "vi" }) as any);
-    dispatch(fetchPosts({ lang: "vi" }) as any).catch(() => {});
-    return () => {
-      dispatch(clearPostDetail());
-    };
-  }, [slug]);
+  const coBai = status === "ok" && !!post;
+  const views = post?.viewCount && post.viewCount > 0 ? post.viewCount : 0;
 
-  const handleShare = useCallback(async () => {
-    if (!postDetail) return;
-    try {
-      await Share.share({
-        title: postDetail.title,
-        message: `${postDetail.title}\n${DOMAIN}/news/${postDetail.slug || slug}`,
-        url: `${DOMAIN}/news/${postDetail.slug || slug}`,
-      });
-    } catch {}
-  }, [postDetail, slug]);
-
-  const isStale = postDetail && postDetail.slug && postDetail.slug !== slug;
-
-  if (isLoading || isStale || (!postDetail && slug)) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: C.bg,
-        }}
-      >
-        <ActivityIndicator size="large" color={C.gold} />
-      </View>
-    );
-  }
-
-  if (!postDetail) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
+  // ── Thanh đầu trang cố định ──────────────────────────────────────────────
+  // Luôn có nút quay lại và chia sẻ. Khi cuộn qua ảnh bìa, nền tối và tên bài
+  // hiện dần. Bản cũ để hai nút này trôi theo nội dung, và chữ bài viết cuộn
+  // đè lên đồng hồ ở thanh trạng thái.
+  const topBar = (
+    <View pointerEvents="box-none" style={ss.topBar}>
+      <Animated.View
+        pointerEvents="none"
+        style={[ss.topBarBg, { opacity: coBai ? nenDau : 1 }]}
+      />
+      <View style={[ss.topBarRow, { paddingTop: insets.top + 6 }]}>
         <TouchableOpacity
+          style={ss.navBtn}
           onPress={() => navigation.goBack()}
-          style={{
-            margin: 20,
-            width: 40,
-            height: 40,
-            borderRadius: 12,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "#161616",
-          }}
+          accessibilityLabel="Quay lại"
         >
           <Ionicons name="arrow-back" size={20} color="#fff" />
         </TouchableOpacity>
-        <View
-          style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+        <Animated.Text
+          numberOfLines={1}
+          style={[ss.topBarTitle, { opacity: coBai ? nenDau : 0 }]}
         >
-          <Ionicons name="alert-circle-outline" size={52} color="#333" />
-          <Text style={{ color: C.muted, fontSize: 15, marginTop: 12 }}>
-            Không tìm thấy bài viết
-          </Text>
+          {post?.title || ""}
+        </Animated.Text>
+        {coBai ? (
+          <TouchableOpacity
+            style={ss.navBtn}
+            onPress={handleShare}
+            accessibilityLabel="Chia sẻ bài viết"
+          >
+            <Ionicons name="share-outline" size={19} color="#fff" />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 40 }} />
+        )}
+      </View>
+      {coBai && (
+        <Animated.View style={[ss.progressTrack, { opacity: nenDau }]}>
+          <Animated.View style={[ss.progressFill, { transform: [{ translateX: tienDo }] }]} />
+        </Animated.View>
+      )}
+    </View>
+  );
+
+  let body: React.ReactNode;
+  if (status === "loading" && !post) {
+    body = (
+      <View style={{ flex: 1 }}>
+        <Skeleton width="100%" height={HERO_H} radius={0} />
+        <View style={{ padding: 20, gap: 12 }}>
+          <Skeleton width={120} height={20} radius={7} />
+          <Skeleton width="95%" height={24} />
+          <Skeleton width="75%" height={24} />
+          <Skeleton width="50%" height={12} />
+          <View style={{ height: 12 }} />
+          {[0, 1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} width={i === 4 ? "60%" : "100%"} height={14} />
+          ))}
         </View>
-      </SafeAreaView>
+      </View>
     );
-  }
-
-  let blocks: any[] = [];
-  try {
-    const parsed = JSON.parse(postDetail.content || "");
-    blocks = parsed?.blocks || [];
-  } catch {
-    blocks = [{ type: "paragraph", data: { text: postDetail.content || "" } }];
-  }
-
-  const cleanBlocks = blocks.filter((block: any) => {
-    if (block.type !== "paragraph") return true;
-    return stripHtml(block.data?.text || "").length > 0;
-  });
-
-  const postTags: string[] = Array.isArray(postDetail.tags)
-    ? postDetail.tags
-    : [];
-  const relatedPosts = allPosts
-    .filter(
-      (p: any) => p && (p.slug || p.id) !== (postDetail.slug || postDetail.id),
-    )
-    .slice(0, 3);
-  const dateStr = formatDate(postDetail.createdAt);
-
-  return (
-    <View style={{ flex: 1, backgroundColor: C.bg }}>
-      <ReadingProgressBar progress={scrollProgress} />
-
-      <ScrollView
-        ref={scrollRef}
+  } else if (!coBai) {
+    body = (
+      <View style={[ss.center, { flex: 1, paddingHorizontal: 40 }]}>
+        <Ionicons name="cloud-offline-outline" size={44} color="#444" />
+        <Text style={{ color: "#fff", fontSize: 16, fontWeight: "800", marginTop: 14 }}>
+          Không mở được bài viết
+        </Text>
+        <Text style={{ color: "#777", fontSize: 13, textAlign: "center", marginTop: 6, lineHeight: 19 }}>
+          Bài viết có thể đã bị gỡ, hoặc kết nối mạng đang chập chờn.
+        </Text>
+        <TouchableOpacity onPress={load} activeOpacity={0.85} style={ss.retryBtn}>
+          <Text style={{ color: "#0a0a0a", fontSize: 13, fontWeight: "800" }}>Thử lại</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  } else {
+    const p = post!;
+    const tags = Array.isArray(p.tags) ? p.tags : [];
+    body = (
+      <Animated.ScrollView
         showsVerticalScrollIndicator={false}
-        bounces
         scrollEventThrottle={16}
-        onScroll={handleScroll}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true },
+        )}
+        onLayout={(e) => {
+          khung.current.view = e.nativeEvent.layout.height;
+          capNhatQuangCuon();
+        }}
         onContentSizeChange={(_, h) => {
-          contentHeight.current = h;
+          khung.current.content = h;
+          capNhatQuangCuon();
         }}
       >
-        {/* ── HERO ── */}
-        <View style={{ height: 300 }}>
-          <HeroMedia uri={postDetail.thumbnailUrl} />
+        {/* ── Ảnh bìa ── */}
+        <View style={{ height: HERO_H }}>
+          <HeroMedia uri={p.thumbnailUrl} onOpen={setViewerUrl} active={focused} />
           <LinearGradient
-            colors={["rgba(0,0,0,0.08)", "rgba(0,0,0,0.45)", "#0a0a0a"]}
-            locations={[0, 0.6, 1]}
+            pointerEvents="none"
+            colors={["rgba(10,10,10,0.6)", "rgba(10,10,10,0)", "rgba(10,10,10,0.35)", C.bg]}
+            locations={[0, 0.28, 0.65, 1]}
             style={StyleSheet.absoluteFillObject}
           />
-          <SafeAreaView style={ss.heroNavRow}>
-            <TouchableOpacity
-              onPress={() => navigation.goBack()}
-              style={ss.heroBtn}
-            >
-              <Ionicons name="arrow-back" size={20} color="#fff" />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleShare} style={ss.heroBtn}>
-              <Ionicons name="share-outline" size={20} color="#fff" />
-            </TouchableOpacity>
-          </SafeAreaView>
         </View>
 
-        {/* ── CONTENT ── */}
-        <View style={{ paddingHorizontal: 20, marginTop: -16 }}>
-          {/* Category badge */}
-          {postDetail.categoryName ? (
-            <View style={ss.catBadge}>
-              <Text style={ss.catBadgeText}>
-                {String(postDetail.categoryName).toUpperCase()}
-              </Text>
-            </View>
-          ) : (
-            <View style={ss.catBadge}>
-              <Text style={ss.catBadgeText}>TIN TỨC</Text>
-            </View>
-          )}
-
-          {/* Title */}
-          <Text style={ss.articleTitle}>{postDetail.title}</Text>
-
-          {/* Meta */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: 6,
-              marginBottom: 16,
-            }}
-          >
-            <Ionicons name="time-outline" size={13} color={C.muted} />
-            <Text style={{ color: C.muted, fontSize: 12 }}>
-              {formatDate(postDetail.createdAt)}
+        <View style={{ paddingHorizontal: 20, marginTop: -26 }}>
+          <View style={ss.catBadge}>
+            <Text style={ss.catBadgeText}>
+              {String(p.categoryName || "Tin tức").toUpperCase()}
             </Text>
-            {postDetail.authorName ? (
+          </View>
+
+          <Text style={ss.articleTitle}>{p.title}</Text>
+
+          {/* Ngày, tác giả, lượt xem gom một dòng — bản cũ hiện ngày hai lần
+              và nút chia sẻ hai lần */}
+          <View style={ss.metaRow}>
+            <Text style={ss.meta}>{formatDate(p.createdAt)}</Text>
+            {p.authorName ? (
               <>
-                <View
-                  style={{
-                    width: 3,
-                    height: 3,
-                    borderRadius: 1.5,
-                    backgroundColor: "#333",
-                  }}
-                />
-                <Ionicons name="person-outline" size={13} color={C.muted} />
-                <Text style={{ color: C.muted, fontSize: 12 }}>
-                  {postDetail.authorName}
-                </Text>
+                <Text style={ss.metaDot}>·</Text>
+                <Text style={ss.meta}>{p.authorName}</Text>
+              </>
+            ) : null}
+            {views ? (
+              <>
+                <Text style={ss.metaDot}>·</Text>
+                <Text style={ss.meta}>{views.toLocaleString("vi-VN")} lượt xem</Text>
               </>
             ) : null}
           </View>
 
-          {/* Summary */}
-          {postDetail.summary ? (
+          {p.summary ? (
             <View style={ss.summaryBlock}>
-              <Text style={ss.summaryText}>{postDetail.summary}</Text>
+              <Text style={ss.summaryText}>{stripHtml(p.summary)}</Text>
             </View>
           ) : null}
 
           <DiamondDivider />
 
-          {/* Article blocks */}
-          {cleanBlocks.map((block: any, i: number) => renderBlock(block, i))}
+          {blocks.map((b: any, i: number) => renderBlock(b, i, setViewerUrl))}
 
-          {/* Tags */}
-          {postTags.length > 0 && (
-            <>
-              <View style={ss.sep} />
-              <TagsRow tags={postTags} />
-            </>
-          )}
+          {tags.length > 0 && <TagsRow tags={tags} />}
 
-          <View style={ss.sep} />
-          <ContactStrip />
-
-          <View style={ss.sep} />
-          <AuthorByline dateStr={dateStr} onShare={handleShare} />
-
-          {/* Related */}
-          {relatedPosts.length > 0 && (
-            <View style={{ marginBottom: 8 }}>
-              <View style={ss.sep} />
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 12,
-                  marginBottom: 16,
-                }}
+          {/* Cuối bài: chia sẻ + liên hệ. Thay khối "LIÊN HỆ" cũ viết cứng số
+              điện thoại, email cá nhân ở cuối mọi bài. */}
+          <View style={ss.endCard}>
+            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "800" }}>
+              Bạn thấy bài viết hữu ích?
+            </Text>
+            <Text style={{ color: "#888", fontSize: 13, marginTop: 4, lineHeight: 19 }}>
+              Chia sẻ cho bạn bè, hoặc liên hệ Webie nếu bạn cần tổ chức sự kiện.
+            </Text>
+            <View style={{ flexDirection: "row", marginTop: 14, gap: 10 }}>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={handleShare}
+                style={[ss.endBtn, { backgroundColor: C.gold }]}
               >
-                <View
-                  style={{
-                    width: 3,
-                    height: 24,
-                    borderRadius: 2,
-                    backgroundColor: C.gold,
-                  }}
-                />
-                <View>
-                  <Text
-                    style={{
-                      color: C.white,
-                      fontSize: 15,
-                      fontWeight: "900",
-                      letterSpacing: -0.3,
-                    }}
-                  >
-                    Bài viết liên quan
-                  </Text>
-                  <Text style={{ color: C.muted, fontSize: 11, marginTop: 1 }}>
-                    Tiếp tục khám phá
-                  </Text>
-                </View>
-              </View>
-              <View style={{ gap: 10 }}>
-                {relatedPosts.map((post: any) => (
-                  <RelatedPostCard
-                    key={post.id || post.slug}
-                    post={post}
-                    onPress={() =>
-                      navigation.push("NewsDetail", {
-                        slug: post.slug || post.id,
-                      })
-                    }
-                  />
-                ))}
-              </View>
+                <Ionicons name="share-social-outline" size={16} color="#0a0a0a" />
+                <Text style={[ss.endBtnText, { color: "#0a0a0a" }]}>Chia sẻ</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setContactOpen(true)}
+                style={[ss.endBtn, { borderWidth: 1, borderColor: C.goldBorder }]}
+              >
+                <Ionicons name="call-outline" size={16} color={C.gold} />
+                <Text style={[ss.endBtnText, { color: C.gold }]}>Liên hệ Webie</Text>
+              </TouchableOpacity>
             </View>
-          )}
+          </View>
         </View>
 
-        <View style={{ height: 40 }} />
-      </ScrollView>
+        {related.length > 0 && (
+          <View style={{ marginTop: 28 }}>
+            <Text style={ss.sectionLabel}>BÀI VIẾT LIÊN QUAN</Text>
+            {related.map((r, i) => (
+              <View key={r.id ?? r.slug}>
+                {i > 0 && <NewsRowDivider />}
+                <NewsRowCard
+                  post={r}
+                  onPress={() => navigation.push("NewsDetail", { slug: r.slug || r.id })}
+                  videoActive={focused}
+                />
+              </View>
+            ))}
+          </View>
+        )}
+
+        <View style={{ height: 32 + insets.bottom }} />
+      </Animated.ScrollView>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      {body}
+      {topBar}
+      <ImageViewer url={viewerUrl} onClose={() => setViewerUrl(null)} topInset={insets.top} />
+      <ContactSheet visible={contactOpen} onClose={() => setContactOpen(false)} />
     </View>
   );
 }
 
 // ─── StyleSheet ───────────────────────────────────────────────────────────────
 const ss = StyleSheet.create({
-  diamond: {
-    width: 7,
-    height: 7,
-    backgroundColor: C.gold,
-    transform: [{ rotate: "45deg" }],
-    shadowColor: C.gold,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7,
-    shadowRadius: 4,
+  center: { alignItems: "center", justifyContent: "center" },
+  topBar: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 20 },
+  topBarBg: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: C.bg,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
   },
-  progressBarBg: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 3,
-    zIndex: 999,
-    backgroundColor: "rgba(216,201,123,0.15)",
-  },
-  progressBarFill: {
-    height: 3,
-    backgroundColor: C.gold,
-    shadowColor: C.gold,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
-  },
-  videoBadge: {
-    position: "absolute",
-    top: 10,
-    right: 10,
+  topBarRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: C.gold,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
   },
-  videoBadgeText: {
-    color: "#000",
-    fontSize: 9,
-    fontWeight: "900",
-    letterSpacing: 0.5,
+  topBarTitle: {
+    flex: 1,
+    marginHorizontal: 12,
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "800",
   },
-  heroNavRow: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 8,
-  },
-  heroBtn: {
+  navBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.45)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    borderColor: "rgba(255,255,255,0.12)",
   },
+  progressTrack: {
+    height: 2,
+    overflow: "hidden",
+    backgroundColor: "rgba(216,201,123,0.12)",
+  },
+  progressFill: { height: 2, width: W, backgroundColor: COLORS.primary },
   catBadge: {
     alignSelf: "flex-start",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 7,
     marginBottom: 12,
-    backgroundColor: "rgba(216,201,123,0.15)",
+    backgroundColor: "rgba(20,20,20,0.85)",
     borderWidth: 1,
     borderColor: C.goldBorder,
   },
-  catBadgeText: {
-    color: C.gold,
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 2,
-  },
+  catBadgeText: { color: C.gold, fontSize: 10.5, fontWeight: "800", letterSpacing: 1.6 },
   articleTitle: {
     color: C.white,
-    fontSize: 24,
+    fontSize: 25,
     fontWeight: "900",
-    lineHeight: 32,
+    lineHeight: 33,
     letterSpacing: -0.5,
-    marginBottom: 8,
   },
+  metaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    marginTop: 10,
+    marginBottom: 18,
+  },
+  meta: { color: C.muted, fontSize: 12.5 },
+  metaDot: { color: "#444", fontSize: 12.5, marginHorizontal: 6 },
   summaryBlock: {
     borderLeftWidth: 3,
     borderLeftColor: C.gold,
     paddingLeft: 14,
-    paddingVertical: 6,
-    marginBottom: 4,
+    paddingVertical: 2,
   },
-  summaryText: {
-    color: "#aaaaaa",
-    fontSize: 16,
-    fontStyle: "italic",
-    lineHeight: 26,
+  // Tóm tắt trước đây in nghiêng cả đoạn dài 9 dòng, khó đọc. Giờ chữ đứng,
+  // đậm vừa và sáng hơn thân bài để vẫn nổi lên như đoạn mở đầu.
+  summaryText: { color: "#e0e0e0", fontSize: 16.5, fontWeight: "500", lineHeight: 26 },
+  h2Wrap: {
+    borderLeftWidth: 3,
+    borderLeftColor: C.gold,
+    paddingLeft: 12,
+    marginTop: 22,
+    marginBottom: 8,
   },
-  blockImgWrap: {
-    marginBottom: 16,
+  blockMedia: {
+    marginTop: 4,
+    marginBottom: 18,
     borderRadius: 16,
     overflow: "hidden",
     backgroundColor: "#111",
-    position: "relative",
+  },
+  expandBtn: {
+    position: "absolute",
+    right: 10,
+    bottom: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  caption: {
+    color: "#888",
+    fontSize: 12.5,
+    fontStyle: "italic",
+    textAlign: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  quote: {
+    backgroundColor: "#111",
+    borderColor: "rgba(216,201,123,0.15)",
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+  },
+  warning: {
+    flexDirection: "row",
+    backgroundColor: "rgba(216,201,123,0.07)",
+    borderColor: C.goldBorder,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+  },
+  table: {
+    marginBottom: 16,
+    borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.07)",
+  },
+  diamond: {
+    width: 7,
+    height: 7,
+    backgroundColor: C.gold,
+    transform: [{ rotate: "45deg" }],
   },
   orderedBullet: {
     width: 22,
@@ -1176,8 +1007,7 @@ const ss = StyleSheet.create({
     justifyContent: "center",
     marginRight: 12,
     marginTop: 3,
-    flexShrink: 0,
-    backgroundColor: "rgba(216,201,123,0.1)",
+    backgroundColor: C.goldDim,
     borderWidth: 1,
     borderColor: C.goldBorder,
   },
@@ -1186,46 +1016,81 @@ const ss = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: C.gold,
-    marginTop: 10,
+    marginTop: 11,
     marginRight: 12,
-    flexShrink: 0,
   },
-  sep: {
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    marginVertical: 20,
-  },
-  relCard: {
-    flexDirection: "row",
-    height: 88,
-    borderRadius: 14,
-    overflow: "hidden",
+  tag: {
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: 100,
+    backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
-  relThumbWrap: {
-    width: 110,
-    height: 88,
-    position: "relative",
-    backgroundColor: "#1a1a1a",
+  endCard: {
+    marginTop: 24,
+    padding: 18,
+    borderRadius: 20,
+    backgroundColor: "#111",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.07)",
   },
-  relArrow: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+  endBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    paddingVertical: 12,
+    borderRadius: 14,
+  },
+  endBtnText: { fontSize: 13.5, fontWeight: "800" },
+  sectionLabel: {
+    color: "#777",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.6,
+    paddingHorizontal: 20,
+    marginBottom: 2,
+  },
+  retryBtn: {
+    marginTop: 18,
+    paddingHorizontal: 26,
+    paddingVertical: 11,
+    borderRadius: 100,
+    backgroundColor: COLORS.primary,
+  },
+  sheet: {
+    backgroundColor: "#181818",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 40,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#333",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  sheetIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: C.goldDim,
-    borderWidth: 1,
-    borderColor: C.goldBorder,
   },
-  authorLogoWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    overflow: "hidden",
-    padding: 6,
-    backgroundColor: "#1a1a0a",
-    borderWidth: 1,
-    borderColor: C.goldBorder,
+  sheetCancel: {
+    marginTop: 12,
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
   },
 });

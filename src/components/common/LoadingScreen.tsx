@@ -1,8 +1,9 @@
 import React, { useEffect, useRef } from "react";
 import { View, Text, Animated, Easing, StyleSheet } from "react-native";
+import { COLORS as THEME } from "../../constants/theme";
 
 const COLORS = {
-  primary: "#D8C97B",
+  primary: THEME.primary,
   background: "#0a0a0a",
 };
 

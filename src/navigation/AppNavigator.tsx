@@ -18,6 +18,10 @@ import NewsDetailScreen from "../screens/shared/NewsDetailScreen";
 import EventMomentsScreen from "../screens/user/EventMomentsScreen";
 import MyTicketsScreen from "../screens/user/MyTicketsScreen";
 import ProfileScreen from "../screens/user/ProfileScreen";
+import CommunityGuidelinesScreen from "../screens/shared/CommunityGuidelinesScreen";
+import PrivacyPolicyScreen from "../screens/shared/PrivacyPolicyScreen";
+import BlockedUsersScreen from "../screens/user/BlockedUsersScreen";
+import DeleteAccountScreen from "../screens/user/DeleteAccountScreen";
 import ActivityQRScannerScreen from "../screens/user/ActivityQRScannerScreen";
 import RegisterOrganizerScreen from "../screens/user/Registerorganizerscreen";
 
@@ -60,16 +64,19 @@ export default function AppNavigator() {
 
   const showAuth = !isAuthenticated && !skippedAuth;
   const isOrganizer = isAuthenticated && user?.role === ROLES.ORGANIZER;
-  console.log(
-    "APPNAV RENDER — isAuthenticated:",
-    isAuthenticated,
-    "showAuth:",
-    showAuth,
-  );
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        // Trước đây để mặc định nên chuyển màn khá cứng. Trượt từ phải kèm
+        // vuốt-để-quay-lại là thói quen người dùng đã quen trên cả hai nền tảng.
+        animation: "slide_from_right",
+        animationDuration: 240,
+        gestureEnabled: true,
+      }}
+    >
         {showAuth ? (
           // Đổi tên từ "Auth" thành "InitialAuth" để tránh xung đột định danh với Modal Auth ở dưới
           <Stack.Screen name="InitialAuth">
@@ -84,6 +91,22 @@ export default function AppNavigator() {
             <Stack.Screen name="EventMoments" component={EventMomentsScreen} />
             <Stack.Screen name="MyTickets" component={MyTicketsScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
+            <Stack.Screen
+              name="CommunityGuidelines"
+              component={CommunityGuidelinesScreen}
+            />
+            <Stack.Screen
+              name="PrivacyPolicy"
+              component={PrivacyPolicyScreen}
+            />
+            <Stack.Screen
+              name="BlockedUsers"
+              component={BlockedUsersScreen}
+            />
+            <Stack.Screen
+              name="DeleteAccount"
+              component={DeleteAccountScreen}
+            />
 
             {/* Gọi đúng màn hình Notifications riêng của Organizer */}
             <Stack.Screen
@@ -105,6 +128,22 @@ export default function AppNavigator() {
             <Stack.Screen name="EventMoments" component={EventMomentsScreen} />
             <Stack.Screen name="MyTickets" component={MyTicketsScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
+            <Stack.Screen
+              name="CommunityGuidelines"
+              component={CommunityGuidelinesScreen}
+            />
+            <Stack.Screen
+              name="PrivacyPolicy"
+              component={PrivacyPolicyScreen}
+            />
+            <Stack.Screen
+              name="BlockedUsers"
+              component={BlockedUsersScreen}
+            />
+            <Stack.Screen
+              name="DeleteAccount"
+              component={DeleteAccountScreen}
+            />
             <Stack.Screen
               name="ActivityQRScanner"
               component={ActivityQRScannerScreen}

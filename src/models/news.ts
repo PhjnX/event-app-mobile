@@ -8,4 +8,9 @@ export interface Post {
   status?: string;
   createdAt: string;
   authorName?: string;
+  categoryName?: string | null;
+  categorySlug?: string | null;
+  viewCount?: number;
+  tags?: string[];
+  isFeatured?: boolean;
 }

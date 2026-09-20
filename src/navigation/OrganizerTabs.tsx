@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import OrganizerHomeScreen from "../screens/organizer/HomeScreen";
 import { OrganizerEventsScreen } from "../screens/organizer/EventsScreen";
 import { OrganizerProfileScreen } from "../screens/organizer/ProfileScreen";
+import { COLORS } from "../constants/theme";
 
 export type OrganizerTabParamList = {
   OrgHome: undefined;
@@ -24,7 +25,7 @@ export type OrganizerTabParamList = {
 
 const Tab = createBottomTabNavigator<OrganizerTabParamList>();
 
-const GOLD = "#D8C97B";
+const GOLD = COLORS.primary;
 const INACTIVE = "#666666"; // Để màu xám sáng lên 1 chút cho sang trọng
 const BG_BAR = "rgba(8,8,8,0.95)";
 
@@ -116,7 +117,14 @@ export default function OrganizerTabs() {
   return (
     <Tab.Navigator
       tabBar={(props) => <CustomOrganizerTabBar {...props} />}
-      screenOptions={{ headerShown: false }}
+      screenOptions={{
+        headerShown: false,
+        // Đã thử animation: "fade" cho thanh tab và bị chớp màn hình: màn cũ mờ
+        // đi trong khi màn mới chưa kịp vẽ, lộ nền đen một khung hình. Bottom
+        // tabs mặc định tháo màn không hoạt động khỏi cây nên crossfade không
+        // có gì để hoà vào. Giữ chuyển tab tức thì; hiệu ứng để dành cho
+        // chuyển màn trong stack, nơi nó chạy đúng.
+      }}
     >
       <Tab.Screen name="OrgHome" component={OrganizerHomeScreen} />
       <Tab.Screen name="OrgEvents" component={OrganizerEventsScreen} />

@@ -1,6 +1,7 @@
 // store/slices/notificationSlice.ts
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
 import apiService from "../../services/apiService"; // Trỏ đúng đường dẫn apiService của bạn
+import { parseServerDate } from "../../utils/datetime";
 
 interface NotificationData {
   eventId?: string;
@@ -152,7 +153,8 @@ export const fetchOrganizerNotifications = createAsyncThunk(
 
       return notifList.sort(
         (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+          parseServerDate(b.createdAt).getTime() -
+          parseServerDate(a.createdAt).getTime(),
       );
     } catch (error: any) {
       return rejectWithValue(error.message || "Đã có lỗi xảy ra");

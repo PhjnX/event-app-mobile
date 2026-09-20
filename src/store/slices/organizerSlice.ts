@@ -27,7 +27,10 @@ export interface Activity {
   startTime: string;
   endTime?: string;
   roomOrVenue?: string;
-  capacity?: number;
+  /** Backend gọi là maxAttendees; trước đây khai nhầm là "capacity" nên luôn undefined. */
+  maxAttendees?: number;
+  // Hai trường dưới KHÔNG có trong ActivityResponseDTO — giữ lại để khỏi vỡ chỗ
+  // đang đọc, nhưng luôn undefined cho tới khi backend bổ sung.
   currentRegistrations?: number;
   activityStatus?: string;
 }
@@ -219,27 +222,34 @@ export const fetchActivityQRCode = createAsyncThunk(
 
 export const checkInByQR = createAsyncThunk(
   "organizer/checkInByQR",
-  async (
-    data: {
-      ticketCode: string;
-      activityQrCode: string;
-      latitude?: number;
-      longitude?: number;
-    },
-    { rejectWithValue },
-  ) => {
+  async (ticketCode: string, { rejectWithValue }) => {
     try {
+      // Backend dùng chung một DTO cho cả hai endpoint check-in, nhưng
+      // /checkin/event CHỈ đọc ticketCode. activityQrCode, latitude và
+      // longitude bị bỏ qua hoàn toàn — không gửi thừa.
       const response: any = await apiService.post("/checkin/event", {
-        ticketCode: data.ticketCode,
-        activityQrCode: data.activityQrCode,
-        latitude: data.latitude ?? 0,
-        longitude: data.longitude ?? 0,
+        ticketCode,
       });
       return response?.data || response;
     } catch (error: any) {
-      const message =
-        error.response?.data?.message || error.message || "Check-in thất bại";
-      return rejectWithValue(message);
+      const raw: string =
+        error.response?.data?.message || error.message || "";
+
+      // Vé thuộc sự kiện của organizer khác. Đã đề nghị backend trả 403; bản
+      // cũ trả 500 kèm câu "không có quyền check-in" — nhận cả hai.
+      if (
+        error.response?.status === 403 ||
+        raw.includes("không có quyền check-in")
+      ) {
+        return rejectWithValue("Vé này không thuộc sự kiện của bạn.");
+      }
+      if (!error.response) {
+        return rejectWithValue(
+          "Không kết nối được máy chủ. Kiểm tra lại mạng rồi quét lại.",
+        );
+      }
+
+      return rejectWithValue(raw || "Check-in thất bại");
     }
   },
 );

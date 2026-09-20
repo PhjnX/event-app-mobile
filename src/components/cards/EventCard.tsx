@@ -3,6 +3,8 @@ import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS, FONTS } from "../../constants/theme";
 import type { Event } from "../../models/event";
+import { formatEventDateChip } from "../../utils/date";
+import { anhNguon } from "../../utils/image";
 
 interface EventCardProps {
   event: Event;
@@ -12,8 +14,7 @@ interface EventCardProps {
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
   return {
-    day: date.getDate().toString().padStart(2, "0"),
-    month: date.toLocaleString("vi-VN", { month: "short" }).toUpperCase(),
+    ...formatEventDateChip(dateString),
     full: date.toLocaleDateString("vi-VN", {
       day: "2-digit",
       month: "2-digit",
@@ -34,11 +35,7 @@ export default function EventCard({ event, onPress }: EventCardProps) {
       {/* Banner Image */}
       <View style={styles.imageContainer}>
         <Image
-          source={{
-            uri:
-              event.bannerImageUrl ||
-              "https://placehold.co/400x200/1a1a1a/666666?text=Event",
-          }}
+          source={anhNguon(event.bannerImageUrl)}
           style={styles.image}
           resizeMode="cover"
         />

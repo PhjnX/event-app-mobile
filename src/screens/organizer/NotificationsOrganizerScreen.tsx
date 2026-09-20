@@ -11,6 +11,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useAppDispatch, useAppSelector } from "../../hooks/useRedux";
+import { parseServerDate } from "../../utils/datetime";
+import { COLORS } from "../../constants/theme";
 import {
   fetchOrganizerNotifications,
   markAsRead,
@@ -18,7 +20,7 @@ import {
   Notification,
 } from "../../store/slices/notificationSlice";
 
-const GOLD = "#D8C97B";
+const GOLD = COLORS.primary;
 const BG = "#060606";
 const CARD = "#0F0F0F";
 const BORDER = "rgba(255,255,255,0.08)";
@@ -35,7 +37,8 @@ const ACTION_TYPES = [
 // ─── Format Time ───
 const formatTime = (dateString: string) => {
   if (!dateString) return "";
-  const date = new Date(dateString);
+  // createdAt do server sinh ra theo giờ UTC nhưng không kèm offset
+  const date = parseServerDate(dateString);
   const now = new Date();
   const diffSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
   if (diffSeconds < 60) return "Vừa xong";

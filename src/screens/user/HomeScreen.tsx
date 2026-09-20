@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -30,6 +30,10 @@ import {
 } from "../../store/slices/eventSlice";
 import { fetchPosts } from "../../store/slices/newsSlice";
 import AppHeader from "../../components/common/Appheader";
+import { parseServerDate } from "../../utils/datetime";
+import { formatEventDate, formatEventDateChip } from "../../utils/date";
+import { COLORS } from "../../constants/theme";
+import { anhNguon } from "../../utils/image";
 
 const { width } = Dimensions.get("window");
 
@@ -112,6 +116,21 @@ const STATS = [
   { num: "15+", label: "Chuyên gia" },
 ];
 
+/**
+ * Định dạng mốc thời gian do **server sinh ra** (createdAt…), vốn là giờ UTC
+ * không kèm offset. Tách riêng khỏi formatDate vì formatDate còn dùng cho
+ * startDate của sự kiện — giá trị đó là giờ Việt Nam do organizer nhập, áp
+ * parseServerDate vào là nhảy thêm 7 tiếng.
+ */
+function formatServerDate(iso?: string): string {
+  if (!iso) return "";
+  return parseServerDate(iso).toLocaleDateString("vi-VN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 function formatDate(iso?: string): string {
   if (!iso) return "";
   try {
@@ -152,7 +171,9 @@ const SectionHeader = ({
         {title}
         {highlight ? " " : ""}
         {highlight && (
-          <Text style={{ color: "#D8C97B", fontSize: 26, fontWeight: "900" }}>
+          <Text
+            style={{ color: COLORS.primary, fontSize: 26, fontWeight: "900" }}
+          >
             {highlight}
           </Text>
         )}
@@ -185,7 +206,7 @@ const IconBox = ({
   size?: number;
 }) => (
   <View className="w-14 h-14 rounded-2xl bg-[#D8C97B]/10 border border-[#D8C97B]/20 items-center justify-center">
-    <MaterialCommunityIcons name={name} size={size} color="#D8C97B" />
+    <MaterialCommunityIcons name={name} size={size} color={COLORS.primary} />
   </View>
 );
 
@@ -237,11 +258,53 @@ function MarqueePartners() {
 // ────────────────────────────────────────────────────
 //  MAIN SCREEN
 // ────────────────────────────────────────────────────
+/**
+ * Nhãn đếm ngược cho vé sắp tới. Giờ sự kiện là giờ Việt Nam do organizer nhập,
+ * nên đọc thẳng bằng new Date() — không qua parseServerDate.
+ */
+const nhanDemNgay = (startIso?: string, endIso?: string): string => {
+  if (!startIso) return "";
+  const now = Date.now();
+  const start = new Date(startIso).getTime();
+  const end = new Date(endIso || startIso).getTime();
+  if (now >= start && now <= end) return "Đang diễn ra";
+
+  const homNay = new Date();
+  homNay.setHours(0, 0, 0, 0);
+  const ngayDienRa = new Date(startIso);
+  ngayDienRa.setHours(0, 0, 0, 0);
+  const soNgay = Math.round(
+    (ngayDienRa.getTime() - homNay.getTime()) / 86400000,
+  );
+
+  if (soNgay <= 0) return "Diễn ra hôm nay";
+  if (soNgay === 1) return "Ngày mai";
+  return `Còn ${soNgay} ngày`;
+};
+
+/** Nhãn nhỏ viết hoa, dùng cho các mục phụ để không tranh chỗ với mục chính. */
+const NhanMuc = ({ children }: { children: string }) => (
+  <Text
+    style={{
+      color: "#777",
+      fontSize: 11,
+      fontWeight: "800",
+      letterSpacing: 1.6,
+      textTransform: "uppercase",
+      paddingHorizontal: 20,
+      marginTop: 28,
+      marginBottom: 12,
+    }}
+  >
+    {children}
+  </Text>
+);
+
 export default function HomeScreen() {
   const { onScroll } = useTabBar();
   const navigation = useNavigation<any>();
   const dispatch = useAppDispatch();
-  const { isAuthenticated } = useAppSelector((s) => s.auth);
+  const { isAuthenticated, user } = useAppSelector((s) => s.auth);
 
   const eventsState = useAppSelector((s) => s.events);
   const newsState = useAppSelector((s) => s.news);
@@ -252,6 +315,25 @@ export default function HomeScreen() {
       ? eventsState.upcomingEvents
       : eventsState?.events || [];
   const posts = newsState?.posts || [];
+
+  // Vé gần nhất đã được duyệt mà sự kiện chưa kết thúc. Đây là thứ người có vé
+  // cần thấy đầu tiên khi mở app — trước đây họ phải cuộn qua carousel quảng cáo
+  // và bốn mục giới thiệu công ty mà vẫn không thấy.
+  const nextTicket = useMemo(() => {
+    const list: any[] = (eventsState as any)?.myRegistrations || [];
+    const now = Date.now();
+    return list
+      .filter((r) => {
+        const st = r.status?.toUpperCase();
+        if (st !== "APPROVED" && st !== "CONFIRMED") return false;
+        return new Date(r.eventEndDate || r.eventStartDate).getTime() >= now;
+      })
+      .sort(
+        (a, b) =>
+          new Date(a.eventStartDate).getTime() -
+          new Date(b.eventStartDate).getTime(),
+      )[0];
+  }, [(eventsState as any)?.myRegistrations]);
 
   const [page, setPage] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -294,21 +376,187 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#D8C97B"
+            tintColor={COLORS.primary}
           />
         }
       >
         <AppHeader />
-
         {/* ══════════════════════════════════════════════
-            1. HERO CAROUSEL — SỰ KIỆN NỔI BẬT
+            0. LỜI CHÀO + VÉ SẮP TỚI
+            Đặt lên đầu vì người dùng app là người đi dự sự kiện: thứ họ cần
+            nhất là sự kiện sắp tới của chính mình, không phải quảng cáo.
         ══════════════════════════════════════════════ */}
-        <View className="mt-4 mb-2">
+        {isAuthenticated && (
+          <View style={{ paddingHorizontal: 20, marginTop: 6 }}>
+            <Text style={{ color: "#777", fontSize: 14 }}>Xin chào,</Text>
+            <Text
+              numberOfLines={1}
+              style={{
+                color: "#fff",
+                fontSize: 26,
+                fontWeight: "900",
+                letterSpacing: -0.6,
+                marginTop: 2,
+              }}
+            >
+              {user?.username || "bạn"}
+            </Text>
+          </View>
+        )}
+        {nextTicket && (
+          <TouchableOpacity
+            activeOpacity={0.92}
+            onPress={() => navigation.navigate("MyTickets")}
+            style={{
+              marginHorizontal: 20,
+              marginTop: 18,
+              borderRadius: 24,
+              overflow: "hidden",
+              borderWidth: 1,
+              borderColor: "rgba(216,201,123,0.35)",
+              backgroundColor: "#121212",
+            }}
+          >
+            {nextTicket.eventBanner ? (
+              <Image
+                source={anhNguon(nextTicket.eventBanner)}
+                style={{ position: "absolute", width: "100%", height: "100%" }}
+                resizeMode="cover"
+              />
+            ) : null}
+            <LinearGradient
+              colors={["rgba(10,10,10,0.55)", "rgba(10,10,10,0.96)"]}
+              style={{ padding: 18 }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    borderRadius: 999,
+                    backgroundColor: COLORS.primary,
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="ticket-confirmation"
+                    size={12}
+                    color="#0a0a0a"
+                  />
+                  <Text
+                    style={{
+                      color: "#0a0a0a",
+                      fontSize: 10,
+                      fontWeight: "900",
+                      letterSpacing: 1,
+                      marginLeft: 5,
+                    }}
+                  >
+                    VÉ SẮP TỚI
+                  </Text>
+                </View>
+                <Text
+                  style={{
+                    color: COLORS.primary,
+                    fontSize: 12,
+                    fontWeight: "800",
+                    marginLeft: 10,
+                  }}
+                >
+                  {nhanDemNgay(
+                    nextTicket.eventStartDate,
+                    nextTicket.eventEndDate,
+                  )}
+                </Text>
+              </View>
+              <Text
+                numberOfLines={2}
+                style={{
+                  color: "#fff",
+                  fontSize: 20,
+                  fontWeight: "900",
+                  lineHeight: 26,
+                  marginTop: 14,
+                }}
+              >
+                {nextTicket.eventName}
+              </Text>
+              <Text
+                numberOfLines={1}
+                style={{ color: "#bbb", fontSize: 13, marginTop: 8 }}
+              >
+                {formatEventDate(nextTicket.eventStartDate)}
+                {nextTicket.location ? ` · ${nextTicket.location}` : ""}
+              </Text>
+              <View style={{ flexDirection: "row", marginTop: 16 }}>
+                <View
+                  style={{
+                    flex: 1,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingVertical: 11,
+                    borderRadius: 14,
+                    backgroundColor: COLORS.primary,
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="qrcode"
+                    size={16}
+                    color="#0a0a0a"
+                  />
+                  <Text
+                    style={{
+                      color: "#0a0a0a",
+                      fontSize: 13,
+                      fontWeight: "800",
+                      marginLeft: 6,
+                    }}
+                  >
+                    Xem vé
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() =>
+                    navigation.navigate("EventDetail", {
+                      slug: nextTicket.eventSlug || nextTicket.eventId,
+                    })
+                  }
+                  style={{
+                    flex: 1,
+                    marginLeft: 10,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingVertical: 11,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.18)",
+                  }}
+                >
+                  <Text
+                    style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}
+                  >
+                    Chi tiết sự kiện
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+        {/* ══════════════════════════════════════════════ 1. HERO CAROUSEL — SỰ KIỆN NỔI BẬT ══════════════════════════════════════════════ */}
+        {featuredEvents.length > 0 && <NhanMuc>Nổi bật</NhanMuc>}
+        <View className="mb-2">
           <PagerView
             style={{ height: 260 }}
             initialPage={0}
             onPageSelected={(e) => setPage(e.nativeEvent.position)}
           >
+            {/* Không được để khoảng trắng hay chuỗi rỗng làm con trực tiếp của
+                PagerView: thư viện đọc props.style của từng con nên gặp chuỗi
+                là văng lỗi "Cannot read property 'style' of undefined". */}
             {featuredEvents.slice(0, 4).map((rawItem, index) => {
               const item = rawItem as any;
               return (
@@ -328,14 +576,10 @@ export default function HomeScreen() {
                 >
                   {/* Ảnh nền */}
                   <Image
-                    source={{
-                      uri:
-                        item.bannerImageUrl || "https://placehold.co/600x300",
-                    }}
+                    source={anhNguon(item.bannerImageUrl)}
                     className="absolute inset-0 w-full h-full"
                     resizeMode="cover"
                   />
-
                   {/* Gradient overlay — đen mạnh hơn ở đáy */}
                   <LinearGradient
                     colors={[
@@ -346,7 +590,6 @@ export default function HomeScreen() {
                     locations={[0, 0.45, 1]}
                     className="absolute inset-0"
                   />
-
                   {/* Badge "SỰ KIỆN NỔI BẬT" ở góc trên-trái */}
                   <View
                     className="absolute top-4 left-5 flex-row items-center rounded-full px-3 py-1.5"
@@ -361,7 +604,6 @@ export default function HomeScreen() {
                       Nổi bật
                     </Text>
                   </View>
-
                   {/* Nội dung — căn dưới, có padding trái phải rõ ràng */}
                   <View className="absolute bottom-0 left-0 right-0 px-5 pb-5 pt-3">
                     {/* Tên sự kiện — chữ lớn, rõ */}
@@ -370,23 +612,37 @@ export default function HomeScreen() {
                       numberOfLines={2}
                       style={{ fontSize: 22, lineHeight: 30 }}
                     >
-                      {item.name || item.title || "Tên sự kiện đang cập nhật"}
+                      {/* Backend trả tên ở eventName. Trước đây chỉ đọc
+                          name/title — hai trường không tồn tại — nên câu dự
+                          phòng "Tên sự kiện đang cập nhật" luôn hiện dù sự
+                          kiện có tên đầy đủ. */}
+                      {item.eventName ||
+                        item.name ||
+                        item.title ||
+                        "Sự kiện nổi bật"}
                     </Text>
 
-                    {/* Meta row */}
-                    <View className="flex-row flex-wrap gap-y-1">
+                    {/* Meta xếp dọc, mỗi dòng tự co và hiện dấu ba chấm.
+                        Trước đây xếp ngang flex-wrap mà không có flexShrink,
+                        nên địa chỉ dài tràn ra rồi bị overflow-hidden của thẻ
+                        xén cụt giữa chữ. */}
+                    <View style={{ gap: 6 }}>
                       {item.location || item.venue ? (
-                        <View className="flex-row items-center mr-5">
+                        <View
+                          className="flex-row items-center"
+                          style={{ flexShrink: 1 }}
+                        >
                           <View className="w-6 h-6 rounded-full bg-[#D8C97B]/15 items-center justify-center mr-2">
                             <MaterialCommunityIcons
                               name="map-marker"
                               size={13}
-                              color="#D8C97B"
+                              color={COLORS.primary}
                             />
                           </View>
                           <Text
                             className="text-[#ccc] text-[14px] font-semibold"
                             numberOfLines={1}
+                            style={{ flexShrink: 1 }}
                           >
                             {item.location || item.venue}
                           </Text>
@@ -398,7 +654,7 @@ export default function HomeScreen() {
                             <MaterialCommunityIcons
                               name="calendar"
                               size={13}
-                              color="#D8C97B"
+                              color={COLORS.primary}
                             />
                           </View>
                           <Text className="text-[#ccc] text-[14px] font-semibold">
@@ -412,7 +668,6 @@ export default function HomeScreen() {
               );
             })}
           </PagerView>
-
           {/* Dots indicator */}
           <View className="flex-row justify-center mt-4 gap-x-2">
             {featuredEvents.slice(0, 4).map((_, i) => (
@@ -422,13 +677,12 @@ export default function HomeScreen() {
                   width: page === i ? 24 : 7,
                   height: 7,
                   borderRadius: 4,
-                  backgroundColor: page === i ? "#D8C97B" : "#2a2a2a",
+                  backgroundColor: page === i ? COLORS.primary : "#2a2a2a",
                 }}
               />
             ))}
           </View>
         </View>
-
         {/* ══════════════════════════════════════════════
             2. SỰ KIỆN SẮP DIỄN RA — GRID 2 CỘT
         ══════════════════════════════════════════════ */}
@@ -456,12 +710,7 @@ export default function HomeScreen() {
                   activeOpacity={0.85}
                 >
                   <Image
-                    source={{
-                      uri:
-                        item.bannerImageUrl ||
-                        item.thumbnailUrl ||
-                        "https://placehold.co/600x300",
-                    }}
+                    source={anhNguon(item.bannerImageUrl || item.thumbnailUrl)}
                     style={{ width: "100%", height: 180 }}
                   />
                   {/* Gradient overlay */}
@@ -480,7 +729,7 @@ export default function HomeScreen() {
                     {/* Date pill */}
                     <View
                       className="flex-row items-center self-start mb-2 rounded-full px-3 py-1"
-                      style={{ backgroundColor: "#D8C97B" }}
+                      style={{ backgroundColor: COLORS.primary }}
                     >
                       <MaterialCommunityIcons
                         name="calendar"
@@ -488,9 +737,7 @@ export default function HomeScreen() {
                         color="#000"
                       />
                       <Text className="text-black text-[12px] font-black ml-1.5">
-                        {item.startDate
-                          ? `${new Date(item.startDate).getDate()} Th${new Date(item.startDate).getMonth() + 1}, ${new Date(item.startDate).getFullYear()}`
-                          : "Đang cập nhật"}
+                        {formatEventDate(item.startDate) || "Đang cập nhật"}
                       </Text>
                     </View>
                     <Text
@@ -547,35 +794,27 @@ export default function HomeScreen() {
                       activeOpacity={0.85}
                     >
                       <Image
-                        source={{
-                          uri:
-                            item.bannerImageUrl ||
-                            item.thumbnailUrl ||
-                            "https://placehold.co/300",
-                        }}
+                        source={anhNguon(
+                          item.bannerImageUrl || item.thumbnailUrl,
+                        )}
                         style={{ width: "100%", height: 110 }}
                       />
                       {/* Date badge góc trên phải */}
                       <View
                         className="absolute top-2.5 right-2.5 rounded-xl py-1.5 px-2.5 items-center"
-                        style={{ backgroundColor: "#D8C97B" }}
+                        style={{ backgroundColor: COLORS.primary }}
                       >
                         <Text
                           className="text-black font-black leading-none"
                           style={{ fontSize: 17 }}
                         >
-                          {item.startDate
-                            ? new Date(item.startDate).getDate()
-                            : "01"}
+                          {formatEventDateChip(item.startDate).day}
                         </Text>
                         <Text
                           className="text-black font-bold mt-0.5 uppercase"
                           style={{ fontSize: 10 }}
                         >
-                          Th{" "}
-                          {item.startDate
-                            ? new Date(item.startDate).getMonth() + 1
-                            : "1"}
+                          {formatEventDateChip(item.startDate).month}
                         </Text>
                       </View>
 
@@ -609,7 +848,6 @@ export default function HomeScreen() {
             ));
           })()}
         </View>
-
         {/* ══════════════════════════════════════════════
             3. TIN TỨC NỔI BẬT — GRID 2 CỘT
         ══════════════════════════════════════════════ */}
@@ -632,9 +870,7 @@ export default function HomeScreen() {
               activeOpacity={0.85}
             >
               <Image
-                source={{
-                  uri: item.thumbnailUrl || "https://placehold.co/300",
-                }}
+                source={anhNguon(item.thumbnailUrl)}
                 style={{ width: "100%", height: 118 }}
               />
               <View className="p-3.5">
@@ -655,18 +891,32 @@ export default function HomeScreen() {
                     className="text-[#555] ml-1.5 font-medium"
                     style={{ fontSize: 12 }}
                   >
-                    {formatDate(item.createdAt)}
+                    {formatServerDate(item.createdAt)}
                   </Text>
                 </View>
               </View>
             </TouchableOpacity>
           ))}
         </View>
-
         {/* ══════════════════════════════════════════════
             4. GIẢI PHÁP CÔNG NGHỆ
         ══════════════════════════════════════════════ */}
-        <SectionHeader title="Giải Pháp" highlight="Công Nghệ" />
+        {/* ══════════════════════════════════════════════
+            NHÓM GIỚI THIỆU WEBIE
+            Bốn mục Giải pháp / Đối tác / Đội ngũ / Liên hệ trước đây mỗi mục
+            một tiêu đề chữ 26px, lấn át hai mục chính phía trên. Nay gom dưới
+            một tiêu đề, còn lại hạ xuống nhãn nhỏ.
+        ══════════════════════════════════════════════ */}
+        <View
+          style={{
+            height: 1,
+            backgroundColor: "rgba(255,255,255,0.06)",
+            marginHorizontal: 20,
+            marginTop: 36,
+          }}
+        />
+        <SectionHeader title="Về" highlight="Webie Vietnam" />
+        <NhanMuc>Giải pháp công nghệ</NhanMuc>
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -694,19 +944,17 @@ export default function HomeScreen() {
             </View>
           )}
         />
-
         {/* ══════════════════════════════════════════════
             5. ĐỐI TÁC
         ══════════════════════════════════════════════ */}
-        <SectionHeader title="Đối Tác" highlight="Đồng Hành" />
+        <NhanMuc>Đối tác đồng hành</NhanMuc>
         <View className="mb-2">
           <MarqueePartners />
         </View>
-
         {/* ══════════════════════════════════════════════
             6. VỀ WEBIE VIETNAM
         ══════════════════════════════════════════════ */}
-        <SectionHeader title="Về" highlight="Webie Vietnam" />
+        <NhanMuc>Đội ngũ</NhanMuc>
         <View className="px-5 mb-6">
           {/* Team photo */}
           <View
@@ -733,7 +981,7 @@ export default function HomeScreen() {
                 <MaterialCommunityIcons
                   name="star-circle-outline"
                   size={17}
-                  color="#D8C97B"
+                  color={COLORS.primary}
                 />
                 <Text
                   className="text-[#D8C97B] font-bold ml-2 tracking-wide"
@@ -771,11 +1019,10 @@ export default function HomeScreen() {
             ))}
           </View>
         </View>
-
         {/* ══════════════════════════════════════════════
             7. LIÊN HỆ HỢP TÁC
         ══════════════════════════════════════════════ */}
-        <SectionHeader title="Liên Hệ" highlight="Hợp Tác" />
+        <NhanMuc>Liên hệ hợp tác</NhanMuc>
         <View className="px-5">
           {/* Map */}
           <TouchableOpacity
@@ -804,7 +1051,7 @@ export default function HomeScreen() {
                 <MaterialCommunityIcons
                   name="navigation-variant-outline"
                   size={17}
-                  color="#D8C97B"
+                  color={COLORS.primary}
                 />
                 <Text
                   className="text-[#999] font-medium flex-1 ml-2"
@@ -865,7 +1112,7 @@ export default function HomeScreen() {
                   <MaterialCommunityIcons
                     name={item.icon}
                     size={22}
-                    color="#D8C97B"
+                    color={COLORS.primary}
                   />
                 </View>
                 <View className="flex-1">

@@ -23,6 +23,7 @@ import {
   timeAgo,
 } from "../../services/notificationservice";
 import { useNotifications } from "../../context/NotificationContext";
+import { COLORS } from "../../constants/theme";
 
 // ─── Notification Item ────────────────────────────────────────────────────────
 const NotifItem = ({
@@ -94,7 +95,7 @@ const NotifItem = ({
                 width: 7,
                 height: 7,
                 borderRadius: 3.5,
-                backgroundColor: "#D8C97B",
+                backgroundColor: COLORS.primary,
                 marginLeft: 8,
                 flexShrink: 0,
               }}
@@ -214,7 +215,7 @@ export default function NotificationsScreen() {
         <View
           style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
         >
-          <ActivityIndicator size="large" color="#D8C97B" />
+          <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
       </SafeAreaView>
     );
@@ -260,7 +261,7 @@ export default function NotificationsScreen() {
             Thông báo
           </Text>
           {unread > 0 && (
-            <Text style={{ color: "#D8C97B", fontSize: 11, marginTop: 1 }}>
+            <Text style={{ color: COLORS.primary, fontSize: 11, marginTop: 1 }}>
               {unread} chưa đọc
             </Text>
           )}
@@ -282,7 +283,7 @@ export default function NotificationsScreen() {
                 }}
               >
                 <Text
-                  style={{ color: "#D8C97B", fontSize: 11, fontWeight: "700" }}
+                  style={{ color: COLORS.primary, fontSize: 11, fontWeight: "700" }}
                 >
                   Đọc hết
                 </Text>
@@ -323,7 +324,7 @@ export default function NotificationsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#D8C97B"
+            tintColor={COLORS.primary}
           />
         }
         ListEmptyComponent={

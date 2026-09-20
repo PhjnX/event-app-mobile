@@ -22,9 +22,10 @@ import {
   OrganizerEvent,
 } from "../../store/slices/organizerSlice";
 import { AppHeader } from "./AppHeader";
+import { COLORS } from "../../constants/theme";
 
 // ─── Colors ──────────────────────────────────────────────────────────────────
-const GOLD = "#D8C97B";
+const GOLD = COLORS.primary;
 const BG = "#060606";
 const CARD = "#0F0F0F";
 const CARD2 = "#141414";

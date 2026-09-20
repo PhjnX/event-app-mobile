@@ -18,6 +18,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useAppSelector, useAppDispatch } from "../../hooks/useRedux";
 import apiService from "../../services/apiService";
 import { fetchMyRegistrations } from "../../store/slices/eventSlice";
+import { COLORS } from "../../constants/theme";
 import type {
   ActivityItem,
   MyRegistration,
@@ -35,7 +36,7 @@ const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const FRAME_SIZE = SCREEN_W * 0.68;
 
 const C = {
-  gold: "#D8C97B",
+  gold: COLORS.primary,
   goldDim: "rgba(216,201,123,0.12)",
   goldBorder: "rgba(216,201,123,0.35)",
   bg: "#0a0a0a",
@@ -43,7 +44,9 @@ const C = {
   error: "#ef4444",
 };
 
-type ScanState = "scanning" | "loading" | "success" | "error";
+// "duplicate" = server trả 200 nhưng là "bạn đã điểm danh rồi".
+// Không phải lỗi, cũng không phải lần điểm danh mới, nên tách riêng.
+type ScanState = "scanning" | "loading" | "success" | "duplicate" | "error";
 
 // ─── Corner Frame ─────────────────────────────────────────────────────────────
 const CornerFrame = ({
@@ -136,7 +139,7 @@ const ResultCard = ({
   onRetry,
   onDone,
 }: {
-  state: "success" | "error";
+  state: "success" | "duplicate" | "error";
   message: string;
   onRetry: () => void;
   onDone: () => void;
@@ -160,6 +163,33 @@ const ResultCard = ({
   }, []);
 
   const isOk = state === "success";
+  const isDuplicate = state === "duplicate";
+  const tone = isOk
+    ? {
+        main: C.success,
+        soft: "rgba(34,197,94,0.1)",
+        line: "rgba(34,197,94,0.28)",
+        border: "rgba(34,197,94,0.25)",
+        icon: "checkmark-circle" as const,
+        title: "Check-in thành công!",
+      }
+    : isDuplicate
+      ? {
+          main: "#f59e0b",
+          soft: "rgba(245,158,11,0.1)",
+          line: "rgba(245,158,11,0.28)",
+          border: "rgba(245,158,11,0.25)",
+          icon: "information-circle" as const,
+          title: "Bạn đã điểm danh rồi",
+        }
+      : {
+          main: C.error,
+          soft: "rgba(239,68,68,0.1)",
+          line: "rgba(239,68,68,0.28)",
+          border: "rgba(239,68,68,0.22)",
+          icon: "close-circle" as const,
+          title: "Check-in thất bại",
+        };
 
   return (
     <Animated.View
@@ -181,7 +211,7 @@ const ResultCard = ({
           padding: 32,
           alignItems: "center",
           borderWidth: 1,
-          borderColor: isOk ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.22)",
+          borderColor: tone.border,
           transform: [{ scale }],
         }}
       >
@@ -207,20 +237,18 @@ const ResultCard = ({
             width: 72,
             height: 72,
             borderRadius: 36,
-            backgroundColor: isOk
-              ? "rgba(34,197,94,0.1)"
-              : "rgba(239,68,68,0.1)",
+            backgroundColor: tone.soft,
             borderWidth: 1,
-            borderColor: isOk ? "rgba(34,197,94,0.28)" : "rgba(239,68,68,0.28)",
+            borderColor: tone.line,
             alignItems: "center",
             justifyContent: "center",
             marginBottom: 20,
           }}
         >
           <Ionicons
-            name={isOk ? "checkmark-circle" : "close-circle"}
+            name={tone.icon}
             size={38}
-            color={isOk ? C.success : C.error}
+            color={tone.main}
           />
         </View>
 
@@ -234,7 +262,7 @@ const ResultCard = ({
             letterSpacing: -0.3,
           }}
         >
-          {isOk ? "Check-in thành công!" : "Check-in thất bại"}
+          {tone.title}
         </Text>
         <Text
           style={{
@@ -763,18 +791,36 @@ export default function ActivityQRScannerScreen() {
       setScanState("loading");
 
       try {
+        // Backend CHỈ đọc activityQrCode; ticketCode, latitude, longitude bị bỏ
+        // qua hoàn toàn.
         const res: any = await apiService.post("/checkin/activity", {
-          ticketCode: selectedTicket.ticketCode,
           activityQrCode: data,
-          latitude: 0,
-          longitude: 0,
         });
+
+        // Hai dạng phản hồi:
+        // - Mới (đã thống nhất với backend): { success, code, message,
+        //   activityName }, code là CHECKED_IN | ALREADY_CHECKED_IN.
+        // - Cũ: chuỗi text thuần, điểm danh trùng chỉ nhận ra qua câu chữ.
+        const laDto = res && typeof res === "object";
+        const text: string = laDto ? (res.message ?? "") : String(res ?? "");
+        const code: string = laDto ? String(res.code ?? "").toUpperCase() : "";
+
+        if (laDto && res.success === false && code !== "ALREADY_CHECKED_IN") {
+          setResultMsg(text || "Không điểm danh được hoạt động này.");
+          setScanState("error");
+          return;
+        }
+        const already = code
+          ? code === "ALREADY_CHECKED_IN"
+          : /đã điểm danh/i.test(text);
+
         setResultMsg(
-          typeof res === "string"
-            ? res
-            : res?.message || "Đã ghi nhận tham gia hoạt động.",
+          text ||
+            (laDto && res.activityName
+              ? `Đã ghi nhận tham gia: ${res.activityName}`
+              : "Đã ghi nhận tham gia hoạt động."),
         );
-        setScanState("success");
+        setScanState(already ? "duplicate" : "success");
       } catch (err: any) {
         setResultMsg(
           err?.response?.data?.message ||
@@ -1293,7 +1339,9 @@ export default function ActivityQRScannerScreen() {
       </SafeAreaView>
 
       {/* Result overlay */}
-      {(scanState === "success" || scanState === "error") && (
+      {(scanState === "success" ||
+        scanState === "duplicate" ||
+        scanState === "error") && (
         <ResultCard
           state={scanState}
           message={resultMsg}
