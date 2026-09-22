@@ -169,7 +169,7 @@ export const CHINH_SACH_QUYEN_RIENG_TU: MucChinhSach[] = [
           "Xoá vĩnh viễn tài khoản: vào Hồ sơ, chọn “Xoá tài khoản” ở cuối trang.",
       },
     ],
-    ketThuc: `Nếu cần bản sao dữ liệu của mình hoặc có khiếu nại về quyền riêng tư, hãy gửi email tới ${EMAIL_QUYEN_RIENG_TU}. Chúng tôi phản hồi trong vòng 30 ngày.`,
+    ketThuc: `Riêng tài khoản ban tổ chức: nếu bạn còn sự kiện chưa kết thúc, hệ thống sẽ yêu cầu bạn hoàn tất hoặc huỷ những sự kiện đó trước, để người đã đăng ký không bị mất sự kiện giữa chừng. Màn hình xoá tài khoản nêu rõ sự kiện nào đang vướng và có sẵn lối gửi yêu cầu tới bộ phận hỗ trợ nếu bạn không tự xử lý được.\n\nNếu cần bản sao dữ liệu của mình hoặc có khiếu nại về quyền riêng tư, hãy gửi email tới ${EMAIL_QUYEN_RIENG_TU}. Chúng tôi phản hồi trong vòng 30 ngày.`,
   },
   {
     tieuDe: "9. An toàn dữ liệu",

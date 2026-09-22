@@ -13,6 +13,7 @@ import {
   StatusBar,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
@@ -21,6 +22,7 @@ import { useAppDispatch, useAppSelector } from "../../hooks/useRedux";
 import { resetToLogin } from "../../store/slices/authSlice";
 import { COLORS } from "../../constants/theme";
 import { getApiErrorMessage } from "../../utils/apiError";
+import { WEBIE_CONTACT } from "../../constants/contact";
 import {
   xinMaXoaTaiKhoan,
   xacNhanXoaTaiKhoan,
@@ -61,6 +63,8 @@ export default function DeleteAccountScreen() {
   const [conLaiGuiLai, setConLaiGuiLai] = useState(0);
   const [conLaiHetHan, setConLaiHetHan] = useState(0);
   const [hoiLanCuoi, setHoiLanCuoi] = useState(false);
+  /** Bật khi lỗi thuộc loại người dùng tự xử lý không được, để mở lối liên hệ. */
+  const [canHoTro, setCanHoTro] = useState(false);
   const oMa = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -96,6 +100,10 @@ export default function DeleteAccountScreen() {
       // 409: còn sự kiện đang hoạt động (message liệt kê tên sự kiện)
       // 403: tài khoản quản trị · 429: xin mã quá nhanh
       setLoi(getApiErrorMessage(e, "Không gửi được mã xác nhận."));
+      // Google Play đòi: nếu người dùng phải làm thêm bước gì trước khi xoá thì
+      // phải nói rõ VÀ có kênh hỗ trợ. 409 (còn sự kiện chưa kết thúc) và 403
+      // (tài khoản quản trị) là hai trường hợp họ tự xử lý không được.
+      setCanHoTro([409, 403].includes(e?.response?.status));
       if (guiLai) setConLaiGuiLai(30);
     } finally {
       setDangGui(false);
@@ -131,10 +139,38 @@ export default function DeleteAccountScreen() {
     }
   };
 
+  /** Thư soạn sẵn gửi bộ phận hỗ trợ, kèm email tài khoản và lý do hệ thống đưa ra. */
+  const guiYeuCauHoTro = () => {
+    const tieuDe = "Yêu cầu xoá tài khoản Webie EMS";
+    const noiDung =
+      "Tôi muốn xoá tài khoản Webie EMS của mình.\n\n" +
+      `Email tài khoản: ${user?.email ?? ""}\n\n` +
+      `Tôi không tự xoá được vì hệ thống báo:\n${loi}\n\n` +
+      "Mong bộ phận hỗ trợ xử lý giúp. Xin cảm ơn.";
+    Linking.openURL(
+      `mailto:${WEBIE_CONTACT.email}?subject=${encodeURIComponent(
+        tieuDe,
+      )}&body=${encodeURIComponent(noiDung)}`,
+    ).catch(() => {});
+  };
+
   const hopLoi = loi ? (
     <View style={s.hopLoi}>
       <Ionicons name="alert-circle-outline" size={16} color="#ef4444" />
-      <Text style={s.chuLoi}>{loi}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={s.chuLoi}>{loi}</Text>
+
+        {canHoTro && (
+          <TouchableOpacity
+            onPress={guiYeuCauHoTro}
+            style={s.nutHoTro}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="mail-outline" size={14} color={COLORS.primary} />
+            <Text style={s.chuHoTro}>Gửi yêu cầu hỗ trợ xoá tài khoản</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   ) : null;
 
@@ -396,6 +432,20 @@ const s = {
     marginRight: 10,
   },
   chuGach: { color: "#ddd", fontSize: 14, lineHeight: 21, flex: 1 },
+  nutHoTro: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 6,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(239,68,68,0.2)",
+  },
+  chuHoTro: {
+    color: COLORS.primary,
+    fontSize: 13,
+    fontWeight: "700" as const,
+  },
   hopLoi: {
     flexDirection: "row" as const,
     gap: 8,
