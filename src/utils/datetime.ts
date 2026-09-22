@@ -7,7 +7,7 @@
  * lệch đúng bằng chênh lệch múi giờ của máy — ở Việt Nam là 7 tiếng, khiến
  * thông báo vừa xảy ra hiện thành "7 giờ trước".
  *
- * ⚠️ CHỈ dùng cho mốc do server sinh ra: createdAt, registrationDate,
+ * QUAN TRỌNG: CHỈ dùng cho mốc do server sinh ra: createdAt, registrationDate,
  * blockedAt, postedAt. TUYỆT ĐỐI không dùng cho giờ sự kiện và hoạt động
  * (startDate, endDate, startTime) — những giá trị đó là giờ Việt Nam do
  * organizer nhập vào, áp hàm này sẽ làm chúng nhảy thêm 7 tiếng.

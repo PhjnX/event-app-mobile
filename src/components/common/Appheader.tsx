@@ -42,7 +42,7 @@ export default function AppHeader({ title, subtitle }: AppHeaderProps) {
   const navigation = useNavigation<any>();
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((s: any) => s.auth);
-  const { unreadCount } = useNotifications(); // ✅ badge thật từ context
+  const { unreadCount } = useNotifications(); // badge thật từ context
 
   const isLoggedIn = !!user && !user.isGuest;
 
@@ -171,7 +171,7 @@ export default function AppHeader({ title, subtitle }: AppHeaderProps) {
         )}
 
         <View style={ss.rightRow}>
-          {/* ✅ Notification bell với badge thật */}
+          {/* Notification bell với badge thật */}
           <TouchableOpacity
             style={[ss.iconBtn, { marginRight: 10 }]}
             onPress={() => navigation.navigate("Notifications")}
@@ -338,7 +338,7 @@ const ss = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  // ✅ Badge mới — hiển thị số thay vì dot cứng
+  // Badge mới — hiển thị số thay vì dot cứng
   notifBadge: {
     position: "absolute",
     top: 4,

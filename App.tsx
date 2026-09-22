@@ -55,34 +55,31 @@ export default function App() {
       } catch (e) {
         console.warn("Lỗi khi nạp asset font hoặc icon:", e);
       } finally {
-        try {
-          await SplashScreen.hideAsync();
-        } catch (e) {}
         setAppIsReady(true);
       }
     };
 
     prepareApp();
-
-    const timeoutId = setTimeout(() => {
-      setShowAnimatedSplash(false);
-    }, 3500);
-
-    return () => clearTimeout(timeoutId);
   }, []);
 
-  if (!appIsReady) {
-    return <View style={{ flex: 1, backgroundColor: "#0a0a0a" }} />;
-  }
+  /**
+   * Chỉ ẩn ảnh khởi động của hệ thống khi màn hiệu ứng đã vẽ xong khung đầu
+   * tiên. Trước đây ẩn ngay sau khi nạp xong phông chữ, lúc đó React chưa kịp
+   * vẽ gì nên lộ ra nền cửa sổ màu trắng rồi một khung đen — người dùng thấy
+   * bốn cảnh nhấp nháy trước khi vào được trang chủ.
+   */
+  const anAnhKhoiDong = () => {
+    SplashScreen.hideAsync().catch(() => {});
+  };
+
+  // Chưa nạp xong phông chữ: không vẽ gì cả, để ảnh khởi động của hệ thống
+  // tiếp tục hiện. Trả về khung rỗng ở đây là tự tạo thêm một cảnh thừa.
+  if (!appIsReady) return null;
 
   if (showAnimatedSplash) {
     return (
-      <View style={{ flex: 1 }}>
-        <SplashArtScreen
-          onFinish={() => {
-            setShowAnimatedSplash(false);
-          }}
-        />
+      <View style={{ flex: 1, backgroundColor: "#0a0a0a" }} onLayout={anAnhKhoiDong}>
+        <SplashArtScreen onFinish={() => setShowAnimatedSplash(false)} />
       </View>
     );
   }

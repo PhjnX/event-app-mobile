@@ -14,7 +14,7 @@ import {
   ScrollView,
   Keyboard,
 } from "react-native";
-// ✅ FIX DOUBLE-TAP: Import TouchableOpacity từ gesture-handler thay vì react-native
+// Import TouchableOpacity từ gesture-handler thay vì react-native
 import { TouchableOpacity } from "react-native-gesture-handler";
 import PagerView from "react-native-pager-view";
 import Svg, { Path } from "react-native-svg";
@@ -397,7 +397,7 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
         maxLength={options?.maxLength}
       />
       {options?.secureTextEntry && options?.onTogglePassword && (
-        // ✅ TouchableOpacity này cũng dùng từ gesture-handler
+        // TouchableOpacity này cũng dùng từ gesture-handler
         <TouchableOpacity onPress={options.onTogglePassword}>
           <Ionicons
             name={options.showPassword ? "eye-outline" : "eye-off-outline"}

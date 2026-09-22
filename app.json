@@ -34,7 +34,8 @@
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE"
-      ]
+      ],
+      "backgroundColor": "#0a0a0a"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -78,6 +79,7 @@
       "eas": {
         "projectId": "f5154fe3-9f5a-4f19-9094-e9a4e0161434"
       }
-    }
+    },
+    "backgroundColor": "#0a0a0a"
   }
 }

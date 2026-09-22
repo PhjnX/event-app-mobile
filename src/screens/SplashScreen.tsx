@@ -160,7 +160,9 @@ const SplashArtScreen: React.FC<SplashArtScreenProps> = ({ onFinish }) => {
         duration: 400,
         useNativeDriver: true,
       }),
-      Animated.delay(3000),
+      // Trước đây dừng ở đây 3 giây, tổng cộng bắt người dùng chờ 5 giây mới
+      // vào được app. Rút xuống để hiệu ứng vẫn chạy trọn vẹn mà không lâu.
+      Animated.delay(900),
       Animated.timing(screenOpacity, {
         toValue: 0,
         duration: 500,
@@ -169,8 +171,9 @@ const SplashArtScreen: React.FC<SplashArtScreenProps> = ({ onFinish }) => {
     ]);
     mainSequence.start();
 
-    // SỬA ĐỔI QUYẾT ĐỊNH: Dùng định thời gian JS độc lập để trigger onFinish
-    // Tổng thời gian xuất hiện + delay + fadeout = ~5000ms
+    // Hẹn giờ riêng để báo cho App biết đã xong, vì Animated không có sự kiện
+    // "kết thúc cả chuỗi" đáng tin khi có vòng lặp chạy song song.
+    // Con số này phải khớp tổng thời lượng chuỗi trên: 600 + 500 + 400 + 900 + 500.
     const timeoutId = setTimeout(() => {
       // Dọn dẹp dừng các loop để giải phóng tài nguyên CPU
       loop1.stop();
@@ -178,7 +181,7 @@ const SplashArtScreen: React.FC<SplashArtScreenProps> = ({ onFinish }) => {
       loop3.stop();
       mainSequence.stop();
       onFinish();
-    }, 5000);
+    }, 2900);
 
     return () => {
       clearTimeout(timeoutId);

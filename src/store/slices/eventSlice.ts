@@ -221,7 +221,7 @@ export const fetchMyRegistrations = createAsyncThunk(
                 `/activities/by-event/${eventId}/registered`,
               );
               if (Array.isArray(activitiesRes) && activitiesRes.length > 0) {
-                // ✅ Map ra ActivityItem[] để ActivityQRScannerScreen dùng được
+                // Map ra ActivityItem[] để ActivityQRScannerScreen dùng được
                 activities = activitiesRes.map((act: any) => ({
                   activityId: act.activityId || act.id,
                   activityName: act.activityName || act.name || "Hoạt động",
@@ -258,8 +258,8 @@ export const fetchMyRegistrations = createAsyncThunk(
             eventStartDate: evt.startDate,
             eventEndDate: evt.endDate,
             location: evt.location || "Online",
-            activities, // ✅ full array với activityId
-            activityNames, // ✅ string join cho backward compat
+            activities, // full array với activityId
+            activityNames, // string join cho backward compat
           };
         }),
       );

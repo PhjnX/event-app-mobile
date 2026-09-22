@@ -22,7 +22,7 @@ import {
   fetchAllOrganizers,
 } from "../../store/slices/organizerSlice";
 
-// ─── Premium Colors ──────────────────────────────────────────────────────
+// Bảng màu dùng riêng cho khu tổ chức
 const GOLD = "#E5D07A";
 const GOLD_DARK = "#9c8b46";
 const BG = "#030303";

@@ -99,7 +99,7 @@ interface OrganizerState {
   checkInResult: CheckInResult | null;
   checkInError: string | null;
   myStatus: OrganizerProfile | null;
-  allOrganizers: any[]; // ✅ ĐÃ SỬA: Phải khai báo biến này ở đây để TypeScript hết mắng
+  allOrganizers: any[]; // ĐÃ SỬA: Phải khai báo biến này ở đây để TypeScript hết mắng
   isLoading: boolean;
   isActivitiesLoading: boolean;
   isRegistrationsLoading: boolean;
@@ -121,7 +121,7 @@ const initialState: OrganizerState = {
   checkInResult: null,
   checkInError: null,
   myStatus: null,
-  allOrganizers: [], // ✅ ĐÃ SỬA: Khởi tạo mảng rỗng
+  allOrganizers: [], // ĐÃ SỬA: Khởi tạo mảng rỗng
   isLoading: false,
   isActivitiesLoading: false,
   isRegistrationsLoading: false,

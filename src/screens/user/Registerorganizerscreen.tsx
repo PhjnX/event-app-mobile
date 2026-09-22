@@ -470,7 +470,7 @@ export default function RegisterOrganizerScreen() {
     }
     setIsSubmitting(true);
     try {
-      // ✅ Field names khớp với web (representative, email, phoneNumber)
+      // Field names khớp với web (representative, email, phoneNumber)
       await dispatch(
         registerOrganizer({
           name: orgName.trim() || name.trim(),
@@ -482,7 +482,7 @@ export default function RegisterOrganizerScreen() {
       ).unwrap();
       setIsSuccess(true);
     } catch (err: any) {
-      // ✅ unwrap() throw string vì rejectWithValue trả về string
+      // unwrap() throw string vì rejectWithValue trả về string
       const msg =
         typeof err === "string" ? err : err?.message || "Vui lòng thử lại sau.";
       Toast.show({

@@ -7,7 +7,7 @@ import { parseServerDate } from "./datetime";
  * nhau: "17 thg 12, 2026" ở màn Sự kiện, "20 Th9, 2026" ở thẻ lớn Trang chủ,
  * "TH 12" ở chip lưới trong khi EventCard lại ghi "THG 12".
  *
- * ⚠️ Phân biệt hai nhóm mốc thời gian, đừng dùng lẫn:
+ * QUAN TRỌNG: Phân biệt hai nhóm mốc thời gian, đừng dùng lẫn:
  * - `formatEventDate` / `formatEventDateChip`: cho giờ **sự kiện** (startDate,
  *   endDate, startTime) — organizer nhập theo giờ Việt Nam, đọc như giờ địa phương.
  * - `formatServerDate`: cho mốc **server sinh ra** (createdAt, registrationDate)

@@ -902,7 +902,7 @@ export default function EventMomentsScreen() {
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // ✅ Post state — tách riêng, truyền qua props xuống PostInputBox
+  // Post state — tách riêng, truyền qua props xuống PostInputBox
   const [caption, setCaption] = useState("");
   const [previewImg, setPreviewImg] = useState<string | null>(null);
   const [previewRatio, setPreviewRatio] = useState(1);
@@ -1308,7 +1308,7 @@ export default function EventMomentsScreen() {
     [moments, blockedIds, hiddenIds, isOwnMoment],
   );
 
-  // ✅ listHeader dùng useMemo — deps không bao gồm caption/previewImg/isPosting
+  // listHeader dùng useMemo — deps không bao gồm caption/previewImg/isPosting
   // PostInputBox nhận props và tự cập nhật mà không làm remount header
   const listHeader = useMemo(
     () => (
@@ -1414,7 +1414,7 @@ export default function EventMomentsScreen() {
         )}
       </View>
     ),
-    // ✅ caption, previewImg, isPosting, user được pass qua props xuống PostInputBox
+    // caption, previewImg, isPosting, user được pass qua props xuống PostInputBox
     // useMemo vẫn update khi chúng thay đổi — nhưng PostInputBox là memo() nên
     // chỉ re-render nội bộ, không unmount → keyboard KHÔNG mất
     [

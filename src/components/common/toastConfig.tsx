@@ -38,7 +38,7 @@ const ToastBase = ({
       shadowOpacity: 0.4,
       shadowRadius: 16,
       elevation: 10,
-      // ✅ FIX: đã xóa gap: 12
+      // đã xóa gap: 12
     }}
   >
     {/* Left accent bar */}
