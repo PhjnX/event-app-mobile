@@ -65,7 +65,7 @@ export const CHINH_SACH_QUYEN_RIENG_TU: MucChinhSach[] = [
       },
     ],
     ketThuc:
-      "Chúng tôi không thu thập vị trí của bạn, không dùng công cụ theo dõi hành vi hay quảng cáo, và không bán dữ liệu cho bên thứ ba.",
+      "Chúng tôi không thu thập vị trí của bạn, không dùng dữ liệu cho quảng cáo, và không bán dữ liệu cho bên thứ ba. Ứng dụng di động không có công cụ đo đạc nào; riêng trang web dùng Google Analytics để đếm lượt truy cập ở dạng thống kê chung.",
   },
   {
     tieuDe: "3. Quyền truy cập thiết bị",
@@ -142,6 +142,11 @@ export const CHINH_SACH_QUYEN_RIENG_TU: MucChinhSach[] = [
       {
         nhan: "Dịch vụ gửi email",
         noiDung: " — chuyển các email xác thực và thông báo tài khoản tới bạn.",
+      },
+      {
+        nhan: "Google Analytics",
+        noiDung:
+          " — đếm lượt truy cập trang web ở dạng thống kê chung. Chỉ chạy trên trang web, không có trong ứng dụng này.",
       },
     ],
   },
