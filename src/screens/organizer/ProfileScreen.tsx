@@ -12,6 +12,7 @@ import {
   Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAppDispatch, useAppSelector } from "../../hooks/useRedux";
@@ -148,6 +149,7 @@ function SectionDivider({ label }: { label: string }) {
 // ─── Main Screen ────────────────────────────────────────────────────────
 export function OrganizerProfileScreen() {
   const dispatch = useAppDispatch();
+  const navigation = useNavigation<any>();
   const { user } = useAppSelector((s) => s.auth);
   const { isLoading, myStatus, allOrganizers } = useAppSelector(
     (s) => s.organizer,
@@ -329,6 +331,33 @@ export function OrganizerProfileScreen() {
                 label="Email tài khoản"
                 value={user?.email}
                 isLast
+              />
+            </View>
+          </View>
+        </FadeSlideIn>
+
+        {/* ── An toàn tài khoản ──
+            Google Play bắt buộc: tài khoản tạo được trong app thì phải xoá
+            được ngay trong app. Tài khoản ban tổ chức nâng cấp từ tài khoản
+            người dùng nên cũng phải có lối vào này, không chỉ màn hồ sơ của
+            người dùng thường mới có. */}
+        <FadeSlideIn delay={80}>
+          <View style={pr.section}>
+            <View style={pr.menuCard}>
+              <LinearGradient
+                colors={["#1c1c1c", "#0a0a0a"]}
+                style={StyleSheet.absoluteFill}
+              />
+              <MenuItem
+                icon="document-text"
+                label="Chính sách quyền riêng tư"
+                onPress={() => navigation.navigate("PrivacyPolicy")}
+              />
+              <MenuItem
+                icon="trash"
+                label="Xoá tài khoản"
+                onPress={() => navigation.navigate("DeleteAccount")}
+                danger
               />
             </View>
           </View>
