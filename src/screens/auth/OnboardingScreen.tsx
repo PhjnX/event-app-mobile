@@ -139,7 +139,11 @@ export default function OnboardingScreen({ onSkip }: OnboardingScreenProps) {
   };
 
   const BACKEND_URL = "https://event-app-y77p.onrender.com";
-  const APP_REDIRECT_URI = "myapp://oauth2/redirect";
+  // Phải khớp với "scheme" trong app.json (ems-app) và với danh sách
+  // ALLOWED_REDIRECT_URIS phía backend. Trước đây khai "myapp://" trong khi app
+  // chỉ đăng ký scheme "ems-app", nên Android không mở lại được app sau khi
+  // xác thực Google xong và màn đăng nhập đứng im.
+  const APP_REDIRECT_URI = "ems-app://oauth2/redirect";
 
   const handleGoogleLogin = async () => {
     try {
