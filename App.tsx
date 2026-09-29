@@ -10,7 +10,8 @@ import {
 } from "@expo-google-fonts/inter";
 
 import { useState, useEffect } from "react";
-import { View } from "react-native";
+import { View, Dimensions } from "react-native";
+import * as ScreenOrientation from "expo-screen-orientation";
 import Toast from "react-native-toast-message";
 import * as SplashScreen from "expo-splash-screen";
 import * as Font from "expo-font";
@@ -30,11 +31,42 @@ import { toastConfig } from "./src/components/common/toastConfig";
 import { NotificationProvider } from "./src/context/NotificationContext";
 import SplashArtScreen from "./src/screens/SplashScreen";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import KhungNoiDung from "./src/components/common/KhungNoiDung";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
+/**
+ * Từ Android 16, máy màn hình lớn (tablet, máy gập) bỏ qua khai báo khoá hướng
+ * trong manifest. Vì vậy manifest không khoá nữa, thay vào đó khoá bằng mã lúc
+ * chạy: điện thoại vẫn dọc như cũ vì mọi màn hình đều dựng cho chiều dọc, còn
+ * màn hình lớn thì cho xoay tự do.
+ *
+ * Mốc 600dp là ngưỡng Android dùng để phân biệt điện thoại với máy tính bảng.
+ */
+const NGUONG_MAN_HINH_LON = 600;
+
+async function khoaHuongManHinh() {
+  const { width, height } = Dimensions.get("screen");
+  const canhNgan = Math.min(width, height);
+  try {
+    if (canhNgan < NGUONG_MAN_HINH_LON) {
+      await ScreenOrientation.lockAsync(
+        ScreenOrientation.OrientationLock.PORTRAIT_UP,
+      );
+    } else {
+      await ScreenOrientation.unlockAsync();
+    }
+  } catch {
+    // Khoá hướng không thành công thì bỏ qua, app vẫn chạy bình thường.
+  }
+}
+
 export default function App() {
   const [showAnimatedSplash, setShowAnimatedSplash] = useState(true);
+
+  useEffect(() => {
+    khoaHuongManHinh();
+  }, []);
   const [appIsReady, setAppIsReady] = useState(false);
 
   useEffect(() => {
@@ -89,7 +121,9 @@ export default function App() {
       <Provider store={store}>
         <SafeAreaProvider>
           <NotificationProvider>
-            <AppNavigator />
+            <KhungNoiDung>
+              <AppNavigator />
+            </KhungNoiDung>
             <StatusBar style="dark" />
             <Toast config={toastConfig} />
           </NotificationProvider>
