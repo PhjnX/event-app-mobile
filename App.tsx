@@ -31,7 +31,6 @@ import { toastConfig } from "./src/components/common/toastConfig";
 import { NotificationProvider } from "./src/context/NotificationContext";
 import SplashArtScreen from "./src/screens/SplashScreen";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import KhungNoiDung from "./src/components/common/KhungNoiDung";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -121,9 +120,7 @@ export default function App() {
       <Provider store={store}>
         <SafeAreaProvider>
           <NotificationProvider>
-            <KhungNoiDung>
-              <AppNavigator />
-            </KhungNoiDung>
+            <AppNavigator />
             <StatusBar style="dark" />
             <Toast config={toastConfig} />
           </NotificationProvider>
