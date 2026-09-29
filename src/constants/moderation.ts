@@ -1,3 +1,4 @@
+import { WEBIE_CONTACT } from "./contact";
 import type { ReportReason } from "../models/moment";
 
 // Phiên bản quy tắc cộng đồng hiện hành. Tăng số này khi nội dung thay đổi
@@ -11,8 +12,10 @@ export const MODERATION_KEYS = {
   BLOCKED_USERS: "moderation:blockedUsers",
 };
 
-// Địa chỉ tiếp nhận phản hồi / khiếu nại về nội dung (Google yêu cầu có kênh liên hệ)
-export const MODERATION_CONTACT_EMAIL = "webie.member2@gmail.com";
+// Địa chỉ tiếp nhận phản hồi / khiếu nại về nội dung (Google yêu cầu có kênh liên hệ).
+// Dùng chung một hộp thư với WEBIE_CONTACT.email để khỏi phải trông hai nơi: báo
+// cáo nội dung mà không ai đọc là lỗi Google xử rất nặng.
+export const MODERATION_CONTACT_EMAIL = WEBIE_CONTACT.email;
 
 export interface ReportReasonOption {
   value: ReportReason;
